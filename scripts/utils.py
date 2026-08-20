@@ -50,10 +50,14 @@ def compile_build_target(args):
         cmds.append('build')
     cmds.append('ci.go')
     retdir = os.getcwd()
-    try:        
+    try:
+        myenv = os.environ.copy()
+        myenv['GO111MODULE'] = args.go111module
+        myenv['GOPROXY'] = args.goproxy
         os.chdir(builddir)
+        logging.info('GO111MODULE [%s] GOPROXY [%s]'%(args.go111module,args.goproxy))
         logging.info('run %s'%(cmds))
-        subprocess.check_call(cmds)
+        subprocess.check_call(cmds,env=myenv)
         retval = True
     except:
         logging.error('%s'%(traceback.format_exc()))
@@ -82,9 +86,13 @@ def compile_single_target(args,target):
     else:
         cmds.append('./cmd/%s'%(target))
     try:
+        myenv = os.environ.copy()
+        myenv['GO111MODULE'] = args.go111module
+        myenv['GOPROXY'] = args.goproxy
         os.chdir(args.topdir)
+        logging.info('GO111MODULE [%s] GOPROXY [%s]'%(args.go111module,args.goproxy))
         logging.info('run %s'%(cmds))
-        subprocess.check_call(cmds)
+        subprocess.check_call(cmds,env=myenv)
         retval = True
     except:
         logging.error('%s'%(traceback.format_exc()))
