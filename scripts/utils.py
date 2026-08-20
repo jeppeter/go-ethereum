@@ -121,6 +121,11 @@ def compile_handler(args,parser):
         sys.exit(3)
     sys.exit(0)
 
+def initpriv_handler(args,parser):
+    set_logging(args)
+    sys.exit(0)
+    return
+
 
 def load_base_parser(parser):
     commandline_fmt='''
@@ -130,22 +135,31 @@ def load_base_parser(parser):
         "topdir|T" : "%s",
         "goproxy" : "https://goproxy.cn",
         "go111module" : "auto",
+        "signerdir" : "%s",
+        "apidir" : "%s",
         "compile<%s.compile_handler>##[target]to compile default geth can accept %s ##" : {
+            "$" : "*"
+        },
+        "initpriv<%s.initpriv_handler>##to init private network##" : {
             "$" : "*"
         }
     }
     '''
     topdir = get_topdir()
+    signerdir = os.path.join(topdir,'datadir_signer')
+    apidir = os.path.join(topdir,'datadir_api')
     if is_win():
         topdir = topdir.replace('\\','\\\\')
+        signerdir = signerdir.replace('\\','\\\\')
+        apidir = apidir.replace('\\','\\\\')
+
     compiledir = get_compile_targets()
     compiles = ''
     for d in compiledir:
         if len(compiles) > 0:
             compiles += ','
         compiles += '%s'%(d)
-
-    commandline = commandline_fmt%(topdir,__name__,compiles)
+    commandline = commandline_fmt%(topdir,signerdir,apidir,__name__,compiles,__name__)
     parser.load_command_line_string(commandline)
     return parser
 
