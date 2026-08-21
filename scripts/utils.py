@@ -121,8 +121,82 @@ def compile_handler(args,parser):
         sys.exit(3)
     sys.exit(0)
 
+def generate_account(args,datadir,secfile):
+    cmds = []
+    if is_win() or is_cygwin():
+        gethbin = os.path.join(args.topdir,'build','bin','cmd','geth.exe')
+    else:
+        gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
+    cmds.append(gethbin)
+    cmds.append('account')
+    cmds.append('new')
+    cmds.append('--datadir')
+    cmds.append(datadir)
+    cmds.append('--password')
+    cmds.append(secfile)
+    retval = False
+    try:
+        subprocess.check_call(cmds)
+        retval = True
+    except:
+        logging.error('%s'%(traceback.format_exc()))
+    return retval
+
+def node_init_genesis(args):
+    cmds = []
+    if is_cygwin() or is_win():
+        cmds.append('node.exe')
+    else:
+        cmds.append('node')
+    cmds.append(os.path.join(args.topdir,'tests','privnet','scripts','generate-keypair.js'))
+    retval = False
+    try:
+        subprocess.check_call(cmds)
+        retval = True
+    except:
+        logging.error('%s'%(traceback.format_exc()))
+    return retval
+
+def init_datadir(args,datadir):
+    cmds = []
+    if is_win() or is_cygwin():
+        gethbin = os.path.join(args.topdir,'build','bin','cmd','geth.exe')
+    else:
+        gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
+    cmds.append(gethbin)
+    cmds.append('init')
+    cmds.append('--datadir')
+    cmds.append(datadir)
+    cmds.append(os.path.join(args.topdir,'tests','privnet','common','genesis.json'))
+    retval = False
+    try:
+        subprocess.check_call(cmds)
+        retval = True
+    except:
+        logging.error('%s'%(traceback.format_exc()))
+    return retval
+
+
 def initpriv_handler(args,parser):
     set_logging(args)
+    # first to init data
+    signersec = os.path.join(args.topdir,'tests','privnet','secrets','password-signer.secret')
+    retval = generate_account(args,args.signerdir,signersec)
+    if not retval:
+        sys.exit(3)
+    apisec = os.path.join(args.topdir,'tests','privnet','secrets','password-api.secret')
+    retval = generate_account(args,args.apidir,apisec)
+    if not retval:
+        sys.exit(3)
+    retval = node_init_genesis(args)
+    if not retval:
+        sys.exit(3)
+    retval = init_datadir(args,args.signerdir)
+    if not retval:
+        sys.exit(3)
+    retval = init_datadir(args,args.apidir)
+    if not retval:
+        sys.exit(3)
     sys.exit(0)
     return
 
@@ -133,6 +207,8 @@ def load_base_parser(parser):
         "input|i" : null,
         "output|o" : null,
         "topdir|T" : "%s",
+        "goos" : "%s",
+        "goarch" : "%s",
         "goproxy" : "https://goproxy.cn",
         "go111module" : "auto",
         "signerdir" : "%s",
