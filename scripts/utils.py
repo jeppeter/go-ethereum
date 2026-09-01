@@ -136,13 +136,40 @@ def generate_account(args,datadir,secfile):
     cmds.append(secfile)
     retval = False
     try:
+        logging.info('cmds %s'%(cmds))
         subprocess.check_call(cmds)
         retval = True
     except:
         logging.error('%s'%(traceback.format_exc()))
     return retval
 
+def check_node_modules(args):
+    nodedir = os.path.join(args.topdir,'tests','privnet')
+    nodemodulesdir = os.path.join(args.topdir,'tests','privnet','node_modules')
+    if os.path.exists(nodemodulesdir):
+        return True
+    retval = False
+    cmds = []
+    if is_win() or is_cygwin():
+        cmds.append('npm.cmd')
+    else:
+        cmds.append('npm')
+    cmds.append('install')
+    pwddir = os.getcwd()
+    try:
+        os.chdir(nodedir)
+        logging.info('cmds %s'%(cmds))
+        subprocess.check_call(cmds)
+        retval = True
+    except:
+        logging.error('%s'%(traceback.format_exc()))
+    os.chdir(pwddir)
+    return retval
+
 def node_init_genesis(args):
+    retval = check_node_modules(args)
+    if not retval:
+        return retval
     cmds = []
     if is_cygwin() or is_win():
         cmds.append('node.exe')
@@ -151,6 +178,7 @@ def node_init_genesis(args):
     cmds.append(os.path.join(args.topdir,'tests','privnet','scripts','generate-keypair.js'))
     retval = False
     try:
+        logging.info('run %s'%(cmds))
         subprocess.check_call(cmds)
         retval = True
     except:
@@ -207,8 +235,6 @@ def load_base_parser(parser):
         "input|i" : null,
         "output|o" : null,
         "topdir|T" : "%s",
-        "goos" : "%s",
-        "goarch" : "%s",
         "goproxy" : "https://goproxy.cn",
         "go111module" : "auto",
         "signerdir" : "%s",
