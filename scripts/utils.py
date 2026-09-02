@@ -8,6 +8,7 @@ import traceback
 import re
 import logging
 import subprocess
+import cmdpack
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
@@ -54,6 +55,11 @@ def compile_build_target(args):
         myenv = os.environ.copy()
         myenv['GO111MODULE'] = args.go111module
         myenv['GOPROXY'] = args.goproxy
+        # make default platform 
+        if 'GOOS' in myenv.keys():
+            del myenv['GOOS']
+        if 'GOARCH' in myenv.keys():
+            del myenv['GOARCH']
         os.chdir(builddir)
         logging.info('GO111MODULE [%s] GOPROXY [%s]'%(args.go111module,args.goproxy))
         logging.info('run %s'%(cmds))
@@ -78,6 +84,10 @@ def compile_single_target(args,target):
     else:
         cmds.append('./build/build')
     cmds.append('install')
+    cmds.append('-arch')
+    cmds.append(args.goarch)
+    cmds.append('-os')
+    cmds.append(args.goos)
     if is_win() or is_cygwin():
         if is_cygwin():
             cmds.append('./cmd/%s'%(target))
@@ -229,6 +239,54 @@ def initpriv_handler(args,parser):
     return
 
 
+def build_checkbuild(topdir):
+    cmds = []
+    if is_win()  or is_cygwin():
+        checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
+    else:
+        checkbuild = os.path.join(topdir,'scripts','checkbuild')
+    checkbuildgo = os.path.join(topdir,'scripts','checkbuild.go')
+    if os.path.exists(checkbuild):
+        return True
+    if is_win() or is_cygwin():
+        cmds.append('go.exe')
+    else:
+        cmds.append('go')
+    cmds.append('build')
+    cmds.append('-o')
+    cmds.append(checkbuild)
+    cmds.append(checkbuildgo)
+    retval = False
+    try:
+        logging.info('call %s'%(cmds))
+        subprocess.check_call(cmds)
+        retval = True
+    except:
+        logging.error('%s'%(traceback.format_exc()))
+    return retval
+
+def get_goos_goarch(topdir):
+    goos = ''
+    goarch = ''
+    if is_win()  or is_cygwin():
+        checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
+    else:
+        checkbuild = os.path.join(topdir,'scripts','checkbuild')
+    copyenv = os.environ.copy()
+    if 'GOOS' in copyenv.keys():
+        del copyenv['GOOS']
+    if 'GOARCH' in copyenv.keys():
+        del copyenv['GOARCH']
+    for l in cmdpack.run_cmd_output([checkbuild],copyenv=copyenv):
+        l = l.rstrip('\r\n')
+        if l.startswith('GOOS='):
+            goos = l.replace('GOOS=','')
+        elif l.startswith('GOARCH='):
+            goarch = l.replace('GOARCH=','')
+    return goos,goarch
+
+
+
 def load_base_parser(parser):
     commandline_fmt='''
     {
@@ -237,6 +295,8 @@ def load_base_parser(parser):
         "topdir|T" : "%s",
         "goproxy" : "https://goproxy.cn",
         "go111module" : "auto",
+        "goos" : "%s",
+        "goarch" : "%s",
         "signerdir" : "%s",
         "apidir" : "%s",
         "compile<%s.compile_handler>##[target]to compile default geth can accept %s ##" : {
@@ -248,6 +308,12 @@ def load_base_parser(parser):
     }
     '''
     topdir = get_topdir()
+    retval = build_checkbuild(topdir)
+    if not retval:
+        raise Exception('can not checkbuild ok')
+    goos,goarch = get_goos_goarch(topdir)
+    if len(goos) == 0 or len(goarch) == 0:
+        raise Exception('can not get goos or goarch')
     signerdir = os.path.join(topdir,'datadir_signer')
     apidir = os.path.join(topdir,'datadir_api')
     if is_win():
@@ -261,7 +327,7 @@ def load_base_parser(parser):
         if len(compiles) > 0:
             compiles += ','
         compiles += '%s'%(d)
-    commandline = commandline_fmt%(topdir,signerdir,apidir,__name__,compiles,__name__)
+    commandline = commandline_fmt%(topdir,goos,goarch,signerdir,apidir,__name__,compiles,__name__)
     parser.load_command_line_string(commandline)
     return parser
 

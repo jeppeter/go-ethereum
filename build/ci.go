@@ -185,6 +185,13 @@ func executablePath(name string) string {
 	return filepath.Join(GOBIN, name)
 }
 
+func executablePathWithOS(name string, osval string) string {
+	if (runtime.GOOS == "windows" && osval == "") || osval == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(GOBIN, name)
+}
+
 func main() {
 	log.SetFlags(log.Lshortfile)
 
@@ -232,6 +239,7 @@ func doInstall(cmdline []string) {
 	var (
 		dlgo       = flag.Bool("dlgo", false, "Download Go and build with it")
 		arch       = flag.String("arch", "", "Architecture to cross build for")
+		osval      = flag.String("os", "", "Operating system to cross build for")
 		cc         = flag.String("cc", "", "C compiler to cross build with")
 		staticlink = flag.Bool("static", false, "Create statically-linked executable")
 	)
@@ -239,7 +247,7 @@ func doInstall(cmdline []string) {
 	env := build.Env()
 
 	// Configure the toolchain.
-	tc := build.GoToolchain{GOARCH: *arch, CC: *cc}
+	tc := build.GoToolchain{GOARCH: *arch, CC: *cc, GOOS: *osval}
 	if *dlgo {
 		csdb := download.MustLoadChecksums("build/checksums.txt")
 		tc.Root = build.DownloadGo(csdb)
@@ -268,7 +276,7 @@ func doInstall(cmdline []string) {
 	// Do the build!
 	for _, pkg := range packages {
 		args := slices.Clone(gobuild.Args)
-		args = append(args, "-o", executablePath(path.Base(pkg)))
+		args = append(args, "-o", executablePathWithOS(path.Base(pkg), *osval))
 		args = append(args, pkg)
 		build.MustRun(&exec.Cmd{Path: gobuild.Path, Args: args, Env: gobuild.Env})
 	}
