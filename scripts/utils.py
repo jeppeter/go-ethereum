@@ -15,6 +15,7 @@ sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 from loglib import set_logging, load_log_commandline,log_command_prefix
 from fileop import read_file,write_file,make_directory_safe,mktemp_file
 from envop import is_win,is_linux,is_cygwin
+from tomlex import TomlEx
 
 
 def get_topdir():
