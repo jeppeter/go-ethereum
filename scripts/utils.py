@@ -390,6 +390,7 @@ def run_geth_with_config(args,tomlfile,key):
         }
         p = subprocess.Popen(cmds,stdout=devnullfile,stderr=devnullfile)
     else:
+        logging.info('cmds %s'%(cmds))
         p = subprocess.Popen(cmds,stdout=devnullfile,stderr=devnullfile)
     return p
     
@@ -413,27 +414,47 @@ def runproc_handler(args,parser):
     sys.exit(0)
     return
 
-def killproc_handler(args,parser):
-    set_logging(args)
+def killproc_linux(args):
     cont = True
     maxcnt = 0 
     while cont:
         cont = False
         maxcnt += 1
-        if is_win() or is_cygwin():
-            ps = psutil.process_iter(['name','exe','pid'])
-        else:
-            ps = psutil.process_iter(['name','pid'])
+        ps = psutil.process_iter(['name','pid'])
+        tokill = []
+        for p in ps:
+            if p.name() == 'geth':
+                sys.stdout.write('gethbin %s\n'%(p.pid))
+                tokill.append(p)
+        idx = 0
+        while idx < len(tokill):
+            try:
+                logging.info('kill [%d]'%(tokill[idx].pid))
+                os.kill(tokill[idx].pid,signal.SIGINT)
+            except:
+                cont = True
+                #if maxcnt >= 3:
+                #    logging.error('%s'%(traceback.format_exc()))
+            idx += 1
+        if cont:
+            logging.info('to cont')
+            time.sleep(1.0)
+    return
+
+
+def killproc_window(args):
+    cont = True
+    maxcnt = 0 
+    while cont:
+        cont = False
+        maxcnt += 1
+        ps = psutil.process_iter(['name','exe','pid'])
         tokill = []
         for p in ps:
             if (is_cygwin() or is_win()) and p.name() == 'geth.exe':
                 if maxcnt == 1:
                     sys.stdout.write('gethbin %s\n'%(p.pid))
                 tokill.append(p)                    
-            elif p.name() == 'geth':
-                if maxcnt == 1:
-                    sys.stdout.write('gethbin %s\n'%(p.pid))
-                tokill.append(p)
         idx = 0
         while idx < len(tokill):
             try:
@@ -443,6 +464,15 @@ def killproc_handler(args,parser):
                 #if maxcnt >= 3:
                 #    logging.error('%s'%(traceback.format_exc()))
             idx += 1
+    return
+
+def killproc_handler(args,parser):
+    set_logging(args)
+
+    if is_win() or is_cygwin():
+        killproc_window(args)
+    else:
+        killproc_linux(args)
 
     sys.exit(0)
     return
