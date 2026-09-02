@@ -10,6 +10,9 @@ import logging
 import subprocess
 import cmdpack
 import json
+import psutil
+import signal
+import time
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
@@ -192,12 +195,16 @@ def compile_handler(args,parser):
         sys.exit(3)
     sys.exit(0)
 
-def generate_account(args,datadir,secfile):
-    cmds = []
+def get_gethbin(args):
     if is_win() or is_cygwin():
         gethbin = os.path.join(args.topdir,'build','bin','cmd','geth.exe')
     else:
         gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
+    return gethbin
+
+
+def generate_account(args,datadir,secfile):
+    cmds = [get_gethbin(args)]
     cmds.append(gethbin)
     cmds.append('account')
     cmds.append('new')
@@ -258,11 +265,7 @@ def node_init_genesis(args):
 
 def init_datadir(args,datadir):
     cmds = []
-    if is_win() or is_cygwin():
-        gethbin = os.path.join(args.topdir,'build','bin','cmd','geth.exe')
-    else:
-        gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
-    cmds.append(gethbin)
+    cmds.append(get_gethbin(args))
     cmds.append('init')
     cmds.append('--datadir')
     cmds.append(datadir)
@@ -301,10 +304,7 @@ def initpriv_handler(args,parser):
 
 def run_geth_dumpconfig(args):
     retfile = mktemp_file('eth-config.XXXXXXXX.toml')
-    gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
-    if is_win() or is_cygwin():
-        gethbin += '.exe'
-    cmds = [gethbin]
+    cmds = [get_gethbin(args)]
     cmds.append('dumpconfig')
     cmds.append(retfile)
     try:
@@ -315,8 +315,13 @@ def run_geth_dumpconfig(args):
         return None
     return retfile
 
-def newconfig_handler(args,parser):
-    set_logging(args)
+def toml_set_value(tex,rdict,key):
+    if key in rdict.keys():
+        for k,v in rdict[key].items():
+            tex.set_value(k,v)
+    return tex
+
+def get_toml_value(args):
     if args.input is not None:
         ins = read_file(args.input)
     else:
@@ -330,7 +335,13 @@ def newconfig_handler(args,parser):
             os.remove(retfile)
     tex = TomlEx()
     tex.loads(ins)
+    return tex
 
+
+
+def newconfig_handler(args,parser):
+    set_logging(args)
+    tex = get_toml_value(args)
     if len(args.subnargs) > 0:
         ins = read_file(args.subnargs[0])
         rdict = json.loads(ins)
@@ -350,6 +361,89 @@ def newconfig_handler(args,parser):
                 tex.set_value(k,v)
     outs = tex.dumps()
     write_file(outs,args.output)
+    sys.exit(0)
+    return
+
+def run_geth_with_config(args,tomlfile,key):
+    cmds = [get_gethbin(args)]
+    cmds.append('--config')
+    cmds.append(tomlfile)
+    cmds.append('--verbosity')
+    cmds.append('5')
+    logfile = os.path.join(args.topdir,'%s.log'%(key))
+    if os.path.exists(logfile):
+        os.remove(logfile)
+    cmds.append('--log.file')
+    cmds.append(logfile)
+    cmds.append('--log.format')
+    cmds.append('logfmt')
+    devnullfile = open(os.devnull,'wb')
+    if is_cygwin() or is_win():
+        flags = 0
+        flags |= 0x00000008  # DETACHED_PROCESS
+        flags |= 0x00000200  # CREATE_NEW_PROCESS_GROUP
+        flags |= 0x08000000  # CREATE_NO_WINDOW
+
+        pkwargs = {
+            'close_fds': True,  # close stdin/stdout/stderr on child
+            'creationflags': flags,
+        }
+        p = subprocess.Popen(cmds,stdout=devnullfile,stderr=devnullfile)
+    else:
+        p = subprocess.Popen(cmds,stdout=devnullfile,stderr=devnullfile)
+    return p
+    
+
+
+def runproc_handler(args,parser):
+    # now to make running
+    set_logging(args)
+    tex = get_toml_value(args)
+
+    ins = read_file(args.subnargs[0])
+    rdict = json.loads(ins)
+    for k in rdict.keys():
+        ntex = toml_set_value(tex,rdict,k)
+        outs = ntex.dumps()
+        curtoml = os.path.join(args.topdir,'%s.toml'%(k))
+        write_file(outs,curtoml)
+        p = run_geth_with_config(args,curtoml,k)
+        sys.stdout.write('[%s] pid [%d]\n'%(k,p.pid))
+
+    sys.exit(0)
+    return
+
+def killproc_handler(args,parser):
+    set_logging(args)
+    cont = True
+    maxcnt = 0 
+    while cont:
+        cont = False
+        maxcnt += 1
+        if is_win() or is_cygwin():
+            ps = psutil.process_iter(['name','exe','pid'])
+        else:
+            ps = psutil.process_iter(['name','pid'])
+        tokill = []
+        for p in ps:
+            if (is_cygwin() or is_win()) and p.name() == 'geth.exe':
+                if maxcnt == 1:
+                    sys.stdout.write('gethbin %s\n'%(p.pid))
+                tokill.append(p)                    
+            elif p.name() == 'geth':
+                if maxcnt == 1:
+                    sys.stdout.write('gethbin %s\n'%(p.pid))
+                tokill.append(p)
+        idx = 0
+        while idx < len(tokill):
+            try:
+                tokill[idx].send_signal(signal.CTRL_C_EVENT)
+            except:
+                pass
+                #if maxcnt >= 3:
+                #    logging.error('%s'%(traceback.format_exc()))
+            idx += 1
+
     sys.exit(0)
     return
 
@@ -375,6 +469,12 @@ def load_base_parser(parser):
         },
         "newconfig<%s.newconfig_handler>##modifile key [clause] ... from input to make output with  to make output config##" : {
             "$" : "*"
+        },
+        "runproc<%s.runproc_handler>##modfile to make config and give the calling##" : {
+            "$" : 1
+        },
+        "killproc<%s.killproc_handler>##to kill process running##" : {
+            "$" : 0
         }
     }
     '''
@@ -392,7 +492,7 @@ def load_base_parser(parser):
         if len(compiles) > 0:
             compiles += ','
         compiles += '%s'%(d)
-    commandline = commandline_fmt%(topdir,signerdir,apidir,__name__,compiles,__name__,__name__)
+    commandline = commandline_fmt%(topdir,signerdir,apidir,__name__,compiles,__name__,__name__,__name__,__name__)
     parser.load_command_line_string(commandline)
     return parser
 
