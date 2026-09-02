@@ -1,0 +1,24 @@
+{
+	"signer" : {
+		"Eth.NetworkId" : 2363,
+		"Node.DataDir" : "z:\\go-ethereum\\datadir_signer",
+		"Node.IPCPath" : "\\\\.\\pipe\\geth.signer",
+		"Node.HTTPPort" : 9545,
+		"Node.AuthPort" : 9551,
+		"Node.WSPort" : 9546,
+		"Node.P2P.BootstrapNodes" : [],
+		"Node.P2P.BootstrapNodesV5" : [],
+		"Node.P2P.ListenAddr" : ":10303"
+	},
+	"api" : {
+		"Eth.NetworkId" : 2363,
+		"Node.DataDir" : "z:\\go-ethereum\\datadir_api",
+		"Node.IPCPath" : "\\\\.\\pipe\\geth.api",
+		"Node.HTTPPort" : 10545,
+		"Node.AuthPort" : 10551,
+		"Node.WSPort" : 10546,
+		"Node.P2P.BootstrapNodes" : [],
+		"Node.P2P.BootstrapNodesV5" : [],
+		"Node.P2P.ListenAddr" : ":11303"
+	}
+}

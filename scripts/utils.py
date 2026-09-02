@@ -9,6 +9,7 @@ import re
 import logging
 import subprocess
 import cmdpack
+import json
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
@@ -71,11 +72,70 @@ def compile_build_target(args):
     os.chdir(retdir)
     return retval
 
+def build_checkbuild(topdir):
+    cmds = []
+    if is_win()  or is_cygwin():
+        checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
+    else:
+        checkbuild = os.path.join(topdir,'scripts','checkbuild')
+    checkbuildgo = os.path.join(topdir,'scripts','checkbuild.go')
+    if os.path.exists(checkbuild):
+        return True
+    if is_win() or is_cygwin():
+        cmds.append('go.exe')
+    else:
+        cmds.append('go')
+    cmds.append('build')
+    cmds.append('-o')
+    cmds.append(checkbuild)
+    cmds.append(checkbuildgo)
+    retval = False
+    try:
+        logging.info('call %s'%(cmds))
+        subprocess.check_call(cmds)
+        retval = True
+    except:
+        logging.error('%s'%(traceback.format_exc()))
+    return retval
+
+def get_goos_goarch(topdir):
+    retval = build_checkbuild(topdir)
+    if not retval:
+        raise Exception('can not checkbuild ok')
+    goos = ''
+    goarch = ''
+    if is_win()  or is_cygwin():
+        checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
+    else:
+        checkbuild = os.path.join(topdir,'scripts','checkbuild')
+    copyenv = os.environ.copy()
+    if 'GOOS' in copyenv.keys():
+        del copyenv['GOOS']
+    if 'GOARCH' in copyenv.keys():
+        del copyenv['GOARCH']
+    for l in cmdpack.run_cmd_output([checkbuild],copyenv=copyenv):
+        l = l.rstrip('\r\n')
+        if l.startswith('GOOS='):
+            goos = l.replace('GOOS=','')
+        elif l.startswith('GOARCH='):
+            goarch = l.replace('GOARCH=','')
+    return goos,goarch
+
+
 
 def compile_single_target(args,target):
     retdir = os.getcwd()
     retval = False
     cmds = []
+    defgoos = args.goos
+    defgoarch = args.goarch
+    if defgoos is None and defgoarch is None:
+        defgoos,defgoarch = get_goos_goarch(args.topdir)
+    elif defgoos is None:
+        defgoos, _ = get_goos_goarch(args.topdir)
+    elif defgoarch is None:
+        _ , defgoarch = get_goos_goarch(args.topdir)
+
 
     if is_win() or is_cygwin():
         if is_cygwin():
@@ -86,9 +146,9 @@ def compile_single_target(args,target):
         cmds.append('./build/build')
     cmds.append('install')
     cmds.append('-arch')
-    cmds.append(args.goarch)
+    cmds.append(defgoarch)
     cmds.append('-os')
-    cmds.append(args.goos)
+    cmds.append(defgoos)
     if is_win() or is_cygwin():
         if is_cygwin():
             cmds.append('./cmd/%s'%(target))
@@ -239,53 +299,59 @@ def initpriv_handler(args,parser):
     sys.exit(0)
     return
 
-
-def build_checkbuild(topdir):
-    cmds = []
-    if is_win()  or is_cygwin():
-        checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
-    else:
-        checkbuild = os.path.join(topdir,'scripts','checkbuild')
-    checkbuildgo = os.path.join(topdir,'scripts','checkbuild.go')
-    if os.path.exists(checkbuild):
-        return True
+def run_geth_dumpconfig(args):
+    retfile = mktemp_file('eth-config.XXXXXXXX.toml')
+    gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
     if is_win() or is_cygwin():
-        cmds.append('go.exe')
-    else:
-        cmds.append('go')
-    cmds.append('build')
-    cmds.append('-o')
-    cmds.append(checkbuild)
-    cmds.append(checkbuildgo)
-    retval = False
+        gethbin += '.exe'
+    cmds = [gethbin]
+    cmds.append('dumpconfig')
+    cmds.append(retfile)
     try:
-        logging.info('call %s'%(cmds))
         subprocess.check_call(cmds)
-        retval = True
     except:
         logging.error('%s'%(traceback.format_exc()))
-    return retval
+        os.remove(retfile)
+        return None
+    return retfile
 
-def get_goos_goarch(topdir):
-    goos = ''
-    goarch = ''
-    if is_win()  or is_cygwin():
-        checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
+def newconfig_handler(args,parser):
+    set_logging(args)
+    if args.input is not None:
+        ins = read_file(args.input)
     else:
-        checkbuild = os.path.join(topdir,'scripts','checkbuild')
-    copyenv = os.environ.copy()
-    if 'GOOS' in copyenv.keys():
-        del copyenv['GOOS']
-    if 'GOARCH' in copyenv.keys():
-        del copyenv['GOARCH']
-    for l in cmdpack.run_cmd_output([checkbuild],copyenv=copyenv):
-        l = l.rstrip('\r\n')
-        if l.startswith('GOOS='):
-            goos = l.replace('GOOS=','')
-        elif l.startswith('GOARCH='):
-            goarch = l.replace('GOARCH=','')
-    return goos,goarch
+        ins = ''
+        retfile = run_geth_dumpconfig(args)
+        if retfile is None:
+            raise Exception('can not dumpconfig')
+        logging.info('dump conifg [%s]'%(retfile))
+        ins = read_file(retfile)
+        if not args.reserved:
+            os.remove(retfile)
+    tex = TomlEx()
+    tex.loads(ins)
 
+    if len(args.subnargs) > 0:
+        ins = read_file(args.subnargs[0])
+        rdict = json.loads(ins)
+        if len(args.subnargs) > 1:
+            key = args.subnargs[1]
+            if key in rdict.keys():
+                for k,v in rdict[key].items():
+                    tex.set_value(k,v)
+
+    if len(args.subnargs) > 2:
+        for l in args.subnargs[2:]:
+            l = l.rstip('\n\r')
+            carr = re.split('=',l,2)
+            if len(carr) >= 2:
+                k = carr[0]
+                v = json.loads(carr[1])
+                tex.set_value(k,v)
+    outs = tex.dumps()
+    write_file(outs,args.output)
+    sys.exit(0)
+    return
 
 
 def load_base_parser(parser):
@@ -296,25 +362,23 @@ def load_base_parser(parser):
         "topdir|T" : "%s",
         "goproxy" : "https://goproxy.cn",
         "go111module" : "auto",
-        "goos" : "%s",
-        "goarch" : "%s",
+        "goos" : null,
+        "goarch" : null,
         "signerdir" : "%s",
+        "reserved:R" : false,
         "apidir" : "%s",
         "compile<%s.compile_handler>##[target]to compile default geth can accept %s ##" : {
             "$" : "*"
         },
         "initpriv<%s.initpriv_handler>##to init private network##" : {
             "$" : "*"
+        },
+        "newconfig<%s.newconfig_handler>##modifile key [clause] ... from input to make output with  to make output config##" : {
+            "$" : "*"
         }
     }
     '''
     topdir = get_topdir()
-    retval = build_checkbuild(topdir)
-    if not retval:
-        raise Exception('can not checkbuild ok')
-    goos,goarch = get_goos_goarch(topdir)
-    if len(goos) == 0 or len(goarch) == 0:
-        raise Exception('can not get goos or goarch')
     signerdir = os.path.join(topdir,'datadir_signer')
     apidir = os.path.join(topdir,'datadir_api')
     if is_win():
@@ -328,7 +392,7 @@ def load_base_parser(parser):
         if len(compiles) > 0:
             compiles += ','
         compiles += '%s'%(d)
-    commandline = commandline_fmt%(topdir,goos,goarch,signerdir,apidir,__name__,compiles,__name__)
+    commandline = commandline_fmt%(topdir,signerdir,apidir,__name__,compiles,__name__,__name__)
     parser.load_command_line_string(commandline)
     return parser
 
