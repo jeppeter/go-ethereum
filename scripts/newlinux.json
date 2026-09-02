@@ -1,8 +1,8 @@
 {
 	"signer" : {
 		"Eth.NetworkId" : 2363,
-		"Node.DataDir" : "/mnt/zdisk/go-ethereum/datadir_signer",
-		"Node.IPCPath" : "/tmp/geth.signer",
+		"#Node.DataDir" : "/mnt/zdisk/go-ethereum/datadir_signer",
+		"#Node.IPCPath" : "/tmp/geth.signer",
 		"Node.HTTPPort" : 9545,
 		"Node.AuthPort" : 9551,
 		"Node.WSPort" : 9546,

@@ -1,8 +1,6 @@
 {
 	"signer" : {
 		"Eth.NetworkId" : 2363,
-		"Node.DataDir" : "z:\\go-ethereum\\datadir_signer",
-		"Node.IPCPath" : "\\\\.\\pipe\\geth.signer",
 		"Node.HTTPPort" : 9545,
 		"Node.AuthPort" : 9551,
 		"Node.WSPort" : 9546,
@@ -12,8 +10,6 @@
 	},
 	"api" : {
 		"Eth.NetworkId" : 2363,
-		"Node.DataDir" : "z:\\go-ethereum\\datadir_api",
-		"Node.IPCPath" : "\\\\.\\pipe\\geth.api",
 		"Node.HTTPPort" : 10545,
 		"Node.AuthPort" : 10551,
 		"Node.WSPort" : 10546,

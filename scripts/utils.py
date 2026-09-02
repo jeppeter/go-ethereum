@@ -405,6 +405,17 @@ def runproc_handler(args,parser):
     rdict = json.loads(ins)
     for k in rdict.keys():
         ntex = toml_set_value(tex,rdict,k)
+        # now to make dir
+        curdatadir = os.path.join(args.topdir,'datadir_%s'%(k))
+        if is_win() or is_cygwin():
+            #curdatadir = curdatadir.replace('\\','\\\\')
+            curpipe = '\\\\.\\pipe\\geth.%s'%(k)
+            #curpipe = curpipe.replace('\\','\\\\')
+        else:
+            curpipe = '/tmp/geth.%s'%(k)
+        ntex.set_value('Node.DataDir',curdatadir)
+        ntex.set_value('Node.IPCPath',curpipe)
+
         outs = ntex.dumps()
         curtoml = os.path.join(args.topdir,'%s.toml'%(k))
         write_file(outs,curtoml)
