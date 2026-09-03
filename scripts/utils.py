@@ -205,7 +205,6 @@ def get_gethbin(args):
 
 def generate_account(args,datadir,secfile):
     cmds = [get_gethbin(args)]
-    cmds.append(gethbin)
     cmds.append('account')
     cmds.append('new')
     cmds.append('--datadir')
