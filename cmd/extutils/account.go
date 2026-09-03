@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"io"
 	//"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,6 +31,15 @@ var encrKeyCommand = &cli.Command{
 	ArgsUsage:   "<keyfile> <passwordfile>",
 	Flags:       []cli.Flag{},
 	Description: `to encrypt the key`,
+}
+
+var genkeyCommand = &cli.Command{
+	Action:      genKey,
+	Name:        "genkey",
+	Usage:       "to generate keyfile with random file default crypto.rand",
+	ArgsUsage:   "[keyfile]  [randfile]",
+	Flags:       []cli.Flag{},
+	Description: `to generate the key`,
 }
 
 func loadEncryptKey(keyfile string, passwordfile string) (retp *keystore.Key, err error) {
@@ -65,6 +75,7 @@ type forgeKey struct {
 	// we only store privkey as pubkey/address can be derived from it
 	// privkey in this struct is always in plaintext
 	PrivateKey string
+	Version    int `json:"version,omitempty"`
 }
 
 func decryptKey(ctx *cli.Context) (err error) {
@@ -128,6 +139,11 @@ func makeEncryptKey(keyfile string, passwordfile string) (outb []byte, err error
 		fkey.PrivateKey = fkey.PrivateKey[2:]
 	}
 
+	if fkey.Version == 0 {
+		/*we make sure complicated ones*/
+		fkey.Version = 3
+	}
+
 	inb, err = json.Marshal(fkey)
 	if err != nil {
 		return
@@ -174,4 +190,51 @@ func encryptKey(ctx *cli.Context) (err error) {
 	fmt.Printf("%s\n", string(outb))
 
 	return nil
+}
+
+func genKey(ctx *cli.Context) (err error) {
+	debug.Setup(ctx)
+	var randfile io.Reader
+	var key *keystore.Key
+	var outb []byte
+	var infil *os.File = nil
+	var outfile string
+
+	randfile = rand.Reader
+
+	if ctx.Args().Len() > 1 {
+		infil, err = os.Open(ctx.Args().Get(1))
+		if err != nil {
+			return
+		}
+		randfile = infil
+	}
+
+	defer func() {
+		if infil != nil {
+			infil.Close()
+			infil = nil
+
+		}
+	}()
+
+	key = keystore.NewKeyForDirectICAP(randfile)
+	outb, err = json.Marshal(key)
+	if err != nil {
+		return
+	}
+
+	if ctx.Args().Len() > 0 {
+		outfile = ctx.Args().Get(0)
+		err = os.WriteFile(outfile, outb, 0640)
+		if err != nil {
+			return
+		}
+	} else {
+		fmt.Printf("%s\n", string(outb))
+	}
+
+	err = nil
+	return
+
 }

@@ -33,6 +33,7 @@ func init() {
 	app.Commands = []*cli.Command{
 		decrKeyCommand,
 		encrKeyCommand,
+		genkeyCommand,
 	}
 
 	app.Flags = slices.Concat(app.Flags, debug.Flags)
