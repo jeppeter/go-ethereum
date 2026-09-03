@@ -487,6 +487,31 @@ def killproc_handler(args,parser):
     sys.exit(0)
     return
 
+def exec_js(args,jsstr):
+    rpcpipe = args.rpcpipe
+    if rpcpipe is None or len(rpcpipe) == 0:
+        raise Exception('please set rpcpipe for connect')
+    cmds = [get_gethbin(args)]
+    cmds.append('--exec')
+    cmds.append(jsstr)
+    cmds.append('attach')
+    cmds.append(rpcpipe)
+    outs = ''
+    for l in cmdpack.run_cmd_output(cmds):
+        outs += l
+    return outs
+
+
+def execjs_handler(args,parser):
+    set_logging(args)
+
+    for s in args.subnargs:
+        outs = exec_js(args,s)
+        sys.stdout.write('%s\n'%(outs))
+    sys.exit(0)
+    return
+
+
 
 def load_base_parser(parser):
     commandline_fmt='''
@@ -498,6 +523,7 @@ def load_base_parser(parser):
         "go111module" : "auto",
         "goos" : null,
         "goarch" : null,
+        "rpcpipe" : null,
         "signerdir" : "%s",
         "reserved:R" : false,
         "apidir" : "%s",
@@ -515,6 +541,9 @@ def load_base_parser(parser):
         },
         "killproc<%s.killproc_handler>##to kill process running##" : {
             "$" : 0
+        },
+        "execjs<execjs_handler>##jscmds ... to get the process##" : {
+            "$" : "+"
         }
     }
     '''
