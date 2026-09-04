@@ -6,7 +6,8 @@
 		"Node.WSPort" : 9546,
 		"Node.P2P.BootstrapNodes" : [],
 		"Node.P2P.BootstrapNodesV5" : [],
-		"Node.P2P.ListenAddr" : ":10303"
+		"Node.P2P.ListenAddr" : ":10303",
+		"PASSWORD.KEY" : "3302002"
 	},
 	"api" : {
 		"Eth.NetworkId" : 2363,
@@ -15,6 +16,7 @@
 		"Node.WSPort" : 10546,
 		"Node.P2P.BootstrapNodes" : [],
 		"Node.P2P.BootstrapNodesV5" : [],
-		"Node.P2P.ListenAddr" : ":11303"
+		"Node.P2P.ListenAddr" : ":11303",
+		"PASSWORD.KEY" : "3302002"
 	}
 }

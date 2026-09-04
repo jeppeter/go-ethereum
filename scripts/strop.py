@@ -7,6 +7,7 @@ import re
 import struct
 import logging
 import inspect
+import base64
 
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -215,6 +216,15 @@ def rand_bytes(numbyte):
         indx += 2
     return rets
 
+def rand_buffer(numbyte,tobase64=False):
+    outb = os.urandom(numbyte)
+    if tobase64:
+        ob = base64.b64encode(outb)
+        return ob.decode('utf-8')
+    else:
+        return outb
+
+
 def rb_handler(args,parser):
     loglib.set_logging(args)
     val = parse_int(args.subnargs[0])
@@ -223,6 +233,14 @@ def rb_handler(args,parser):
     sys.exit(0)
     return
 
+def randbuf_handler(args,parser):
+    loglib.set_logging(args)
+    for v in args.subnargs:
+        iv = parse_int(v)
+        bf = rand_buffer(iv,True)
+        sys.stdout.write('%s\n'%(bf))
+    sys.exit(0)
+    return
 
 def main():
     commandline='''
@@ -231,6 +249,9 @@ def main():
         "output|o" : null,
         "rb<rb_handler>##to give rand bytes##" : {
             "$" : 1
+        },
+        "randbuf<randbuf_handler>##to give rand bytes in base64##" : {
+            "$" : "+"
         }
     }
     '''

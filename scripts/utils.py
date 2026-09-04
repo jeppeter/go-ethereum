@@ -20,6 +20,7 @@ from loglib import set_logging, load_log_commandline,log_command_prefix
 from fileop import read_file,write_file,make_directory_safe,mktemp_file
 from envop import is_win,is_linux,is_cygwin
 from tomlex import TomlEx
+from strop import rand_buffer
 
 
 def get_topdir():
@@ -202,9 +203,13 @@ def get_gethbin(args):
         gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
     return gethbin
 
+def new_verbose_mode(args):
+    return ['--verbosity','0']
+
 
 def generate_account(args,datadir,secfile):
     cmds = [get_gethbin(args)]
+    cmds.extend(new_verbose_mode(args))
     cmds.append('account')
     cmds.append('new')
     cmds.append('--datadir')
@@ -212,12 +217,19 @@ def generate_account(args,datadir,secfile):
     cmds.append('--password')
     cmds.append(secfile)
     retval = False
+    outf = None
     try:
         logging.info('cmds %s'%(cmds))
-        subprocess.check_call(cmds)
+        if args.verbose >= 3:
+            outf = None
+        else:
+            outf = open(os.devnull,'w+')
+        subprocess.check_call(cmds,stdout=outf)
         retval = True
     except:
         logging.error('%s'%(traceback.format_exc()))
+    if outf is not None:
+        outf.close()
     return retval
 
 def check_node_modules(args):
@@ -262,13 +274,14 @@ def node_init_genesis(args):
         logging.error('%s'%(traceback.format_exc()))
     return retval
 
-def init_datadir(args,datadir):
+def init_datadir_genesis(args,datadir,gensisfile):
     cmds = []
     cmds.append(get_gethbin(args))
+    cmds.extend(new_verbose_mode(args))
     cmds.append('init')
     cmds.append('--datadir')
     cmds.append(datadir)
-    cmds.append(os.path.join(args.topdir,'tests','privnet','common','genesis.json'))
+    cmds.append(gensisfile)
     retval = False
     try:
         subprocess.check_call(cmds)
@@ -277,26 +290,52 @@ def init_datadir(args,datadir):
         logging.error('%s'%(traceback.format_exc()))
     return retval
 
+PASSWORD_KEYWORD = 'PASSWORD.KEY'
+
+def get_user_datadir(args,username):
+    return os.path.join(args.topdir,'datadir_%s'%(username))
+
+def username_datadir_init(args,username,rdict,gensisfile):
+    datadir = get_user_datadir(args,username)
+    secfile = mktemp_file('secfile.XXXXXXX.password')
+    password = ''
+    if PASSWORD_KEYWORD in rdict.keys():
+        password = rdict[PASSWORD_KEYWORD]
+    else:
+        password = rand_buffer(16,True)
+    logging.info('[%s] password [%s]'%(username,password))
+    write_file(password,secfile)
+    retval = generate_account(args,datadir,secfile)
+    if not args.reserved:
+        os.remove(secfile)
+    if not retval:
+        return retval
+    return init_datadir_genesis(args,datadir,gensisfile)
+    return retval
+
+
+
+
 
 def initpriv_handler(args,parser):
     set_logging(args)
     # first to init data
-    signersec = os.path.join(args.topdir,'tests','privnet','secrets','password-signer.secret')
-    retval = generate_account(args,args.signerdir,signersec)
-    if not retval:
-        sys.exit(3)
-    apisec = os.path.join(args.topdir,'tests','privnet','secrets','password-api.secret')
-    retval = generate_account(args,args.apidir,apisec)
-    if not retval:
-        sys.exit(3)
-    retval = node_init_genesis(args)
-    if not retval:
-        sys.exit(3)
-    retval = init_datadir(args,args.signerdir)
-    if not retval:
-        sys.exit(3)
-    retval = init_datadir(args,args.apidir)
-    if not retval:
+    if len(args.subnargs) < 2:
+        raise Exception('need config.json and gensisfile')
+    s = read_file(args.subnargs[0])
+    gensisfile = args.subnargs[1]
+    rdict = json.loads(s)
+    totalret = True
+    for k in rdict.keys():
+        retval = username_datadir_init(args,k,rdict[k],gensisfile)
+        if not retval:
+            sys.stderr.write('init %s error\n'%(k))
+            totalret = False
+        else:
+            if args.verbose == 0:
+                sys.stdout.write('init [%s] succ\n'%(k))
+
+    if not totalret:
         sys.exit(3)
     sys.exit(0)
     return
@@ -317,7 +356,8 @@ def run_geth_dumpconfig(args):
 def toml_set_value(tex,rdict,key):
     if key in rdict.keys():
         for k,v in rdict[key].items():
-            tex.set_value(k,v)
+            if k != PASSWORD_KEYWORD:
+                tex.set_value(k,v)
     return tex
 
 def get_toml_value(args):
@@ -530,8 +570,8 @@ def load_base_parser(parser):
         "compile<%s.compile_handler>##[target]to compile default geth can accept %s ##" : {
             "$" : "*"
         },
-        "initpriv<%s.initpriv_handler>##to init private network##" : {
-            "$" : "*"
+        "initpriv<%s.initpriv_handler>##modfile genesisfile to init private network##" : {
+            "$" : 2
         },
         "newconfig<%s.newconfig_handler>##modifile key [clause] ... from input to make output with  to make output config##" : {
             "$" : "*"
