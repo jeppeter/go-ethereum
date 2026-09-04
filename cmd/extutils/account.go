@@ -19,7 +19,7 @@ import (
 var decrKeyCommand = &cli.Command{
 	Action:      decryptKey,
 	Name:        "decryptkey",
-	Usage:       "to decrypt keyfile with passwordfile",
+	Usage:       "to decrypt keyfile with passwordfile output for --output",
 	ArgsUsage:   "<keyfile> <passwordfile>",
 	Flags:       []cli.Flag{},
 	Description: `to decrypt the key`,
@@ -27,7 +27,7 @@ var decrKeyCommand = &cli.Command{
 var encrKeyCommand = &cli.Command{
 	Action:      encryptKey,
 	Name:        "encryptkey",
-	Usage:       "to encrypt keyfile with passwordfile",
+	Usage:       "to encrypt keyfile with passwordfile output for --output",
 	ArgsUsage:   "<keyfile> <passwordfile>",
 	Flags:       []cli.Flag{},
 	Description: `to encrypt the key`,
@@ -36,8 +36,8 @@ var encrKeyCommand = &cli.Command{
 var genkeyCommand = &cli.Command{
 	Action:      genKey,
 	Name:        "genkey",
-	Usage:       "to generate keyfile with random file default crypto.rand",
-	ArgsUsage:   "[keyfile]  [randfile]",
+	Usage:       "to generate keyfile with random file default crypto.rand output for --output",
+	ArgsUsage:   "[randfile]",
 	Flags:       []cli.Flag{},
 	Description: `to generate the key`,
 }
@@ -79,6 +79,7 @@ type forgeKey struct {
 }
 
 func decryptKey(ctx *cli.Context) (err error) {
+	var output string
 	debug.Setup(ctx)
 	if ctx.Args().Len() < 2 {
 		return fmt.Errorf("need <keyfile> <passwordfile>")
@@ -99,7 +100,16 @@ func decryptKey(ctx *cli.Context) (err error) {
 	if err != nil {
 		return
 	}
-	fmt.Printf("%s\n", string(outb))
+
+	output = ctx.String(outputFlag.Name)
+	if len(output) == 0 {
+		fmt.Printf("%s\n", string(outb))
+	} else {
+		err = os.WriteFile(output, outb, 0604)
+		if err != nil {
+			return
+		}
+	}
 
 	return nil
 }
@@ -172,6 +182,7 @@ func makeEncryptKey(keyfile string, passwordfile string) (outb []byte, err error
 }
 
 func encryptKey(ctx *cli.Context) (err error) {
+	var output string
 	debug.Setup(ctx)
 	if ctx.Args().Len() < 2 {
 		return fmt.Errorf("need <keyfile> <passwordfile>")
@@ -187,7 +198,16 @@ func encryptKey(ctx *cli.Context) (err error) {
 	if err != nil {
 		return
 	}
-	fmt.Printf("%s\n", string(outb))
+
+	output = ctx.String(outputFlag.Name)
+	if len(output) == 0 {
+		fmt.Printf("%s\n", string(outb))
+	} else {
+		err = os.WriteFile(output, outb, 0604)
+		if err != nil {
+			return
+		}
+	}
 
 	return nil
 }
@@ -198,12 +218,12 @@ func genKey(ctx *cli.Context) (err error) {
 	var key *keystore.Key
 	var outb []byte
 	var infil *os.File = nil
-	var outfile string
+	var output string
 
 	randfile = rand.Reader
 
-	if ctx.Args().Len() > 1 {
-		infil, err = os.Open(ctx.Args().Get(1))
+	if ctx.Args().Len() > 0 {
+		infil, err = os.Open(ctx.Args().Get(0))
 		if err != nil {
 			return
 		}
@@ -224,9 +244,10 @@ func genKey(ctx *cli.Context) (err error) {
 		return
 	}
 
-	if ctx.Args().Len() > 0 {
-		outfile = ctx.Args().Get(0)
-		err = os.WriteFile(outfile, outb, 0640)
+	output = ctx.String(outputFlag.Name)
+
+	if len(output) > 0 {
+		err = os.WriteFile(output, outb, 0640)
 		if err != nil {
 			return
 		}

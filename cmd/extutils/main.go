@@ -19,6 +19,7 @@ package main
 import (
 	//"bufio"
 	"fmt"
+	"github.com/ethereum/go-ethereum/console"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/flags"
 	"github.com/urfave/cli/v2"
@@ -29,14 +30,14 @@ import (
 var app = flags.NewApp("Ethereum extended utils")
 
 func init() {
-
+	console.SetColorConsole(os.Stdout)
 	app.Commands = []*cli.Command{
 		decrKeyCommand,
 		encrKeyCommand,
 		genkeyCommand,
 	}
 
-	app.Flags = slices.Concat(app.Flags, debug.Flags)
+	app.Flags = slices.Concat(app.Flags, debug.Flags, ExtFlags)
 
 	app.Name = "extutils"
 	app.Action = version
