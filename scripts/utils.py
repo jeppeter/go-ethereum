@@ -289,11 +289,35 @@ def init_datadir_genesis(args,datadir,gensisfile):
     return retval
 
 PASSWORD_KEYWORD = 'PASSWORD.KEY'
+GENESIS_CONFIG = 'config'
+GENESIS_CHAINID = 'chainId'
 
 def get_user_datadir(args,username):
     return os.path.join(args.datadir,'datadir_%s'%(username))
 
-def username_datadir_init(args,username,rdict,gensisfile):
+def init_user_toml(args,username,rdict,tex):
+    ns = tex.dumps()
+    ntex = TomlEx()
+    ntex.loads(ns)
+    logging.info('username [%s]rdict\n%s'%(username,json.dumps(rdict,indent=4)))
+    ntex = toml_set_value(ntex,rdict,username)
+    # now to make dir
+    curdatadir = get_user_datadir(args,username)
+    if is_windows():
+        #curdatadir = curdatadir.replace('\\','\\\\')
+        curpipe = '\\\\.\\pipe\\geth.%s'%(username)
+        #curpipe = curpipe.replace('\\','\\\\')
+    else:
+        curpipe = '/tmp/geth.%s'%(username)
+    ntex.set_value('Node.DataDir',curdatadir)
+    ntex.set_value('Node.IPCPath',curpipe)
+
+    outs = ntex.dumps()
+    curtoml = os.path.join(curdatadir,'%s.toml'%(username))
+    write_file(outs,curtoml)
+    return True
+
+def username_datadir_init(args,username,rdict,gensisfile,tex):
     datadir = get_user_datadir(args,username)
     secfile = mktemp_file('secfile.XXXXXXX.password')
     password = ''
@@ -308,7 +332,22 @@ def username_datadir_init(args,username,rdict,gensisfile):
         os.remove(secfile)
     if not retval:
         return retval
-    return init_datadir_genesis(args,datadir,gensisfile)
+    newgenesis = mktemp_file('genesis.XXXXXX.json')
+    ins = read_file(gensisfile)
+    cdict = json.loads(ins)
+    if GENESIS_CONFIG not in cdict.keys():
+        cdict[GENESIS_CONFIG] = dict()
+    cdict[GENESIS_CONFIG][GENESIS_CHAINID] = args.networkid
+    outs = json.dumps(cdict,indent=4)
+    write_file(outs,newgenesis)
+    retval =  init_datadir_genesis(args,datadir,newgenesis)
+    if not args.reserved:
+        os.remove(newgenesis)
+    else:
+        logging.info('newgenesis %s'%(newgenesis))
+    if not retval:
+        return retval
+    retval = init_user_toml(args,username,rdict,tex)
     return retval
 
 
@@ -324,15 +363,15 @@ def initpriv_handler(args,parser):
     gensisfile = args.subnargs[1]
     rdict = json.loads(s)
     totalret = True
+    tex = get_toml_value(args)
     for k in rdict.keys():
-        retval = username_datadir_init(args,k,rdict[k],gensisfile)
+        retval = username_datadir_init(args,k,rdict[k],gensisfile,tex)
         if not retval:
             sys.stderr.write('init %s error\n'%(k))
             totalret = False
         else:
             if args.verbose == 0:
                 sys.stdout.write('init [%s] succ\n'%(k))
-
     if not totalret:
         sys.exit(3)
     sys.exit(0)
@@ -352,10 +391,9 @@ def run_geth_dumpconfig(args):
     return retfile
 
 def toml_set_value(tex,rdict,key):
-    if key in rdict.keys():
-        for k,v in rdict[key].items():
-            if k != PASSWORD_KEYWORD:
-                tex.set_value(k,v)
+    for k,v in rdict.items():
+        if k != PASSWORD_KEYWORD:
+            tex.set_value(k,v)
     return tex
 
 def get_toml_value(args):
@@ -409,8 +447,9 @@ def run_geth_with_config(args,tomlfile,key):
     cmds.append('5')
     curdatadir = get_user_datadir(args,key)
     logfile = os.path.join(curdatadir,'%s.log'%(key))
-    if os.path.exists(logfile):
-        os.remove(logfile)
+    # do not remove log file
+    #if os.path.exists(logfile):
+    #    os.remove(logfile)
     cmds.append('--log.file')
     cmds.append(logfile)
     cmds.append('--log.format')
@@ -433,6 +472,10 @@ def run_geth_with_config(args,tomlfile,key):
     return p
     
 
+def get_user_toml(args,username):
+    curdatadir = get_user_datadir(args,username)
+    curtoml = os.path.join(curdatadir,'%s.toml'%(username))
+    return curtoml
 
 def runproc_handler(args,parser):
     # now to make running
@@ -442,21 +485,7 @@ def runproc_handler(args,parser):
     ins = read_file(args.subnargs[0])
     rdict = json.loads(ins)
     for k in rdict.keys():
-        ntex = toml_set_value(tex,rdict,k)
-        # now to make dir
-        curdatadir = get_user_datadir(args,k)
-        if is_windows():
-            #curdatadir = curdatadir.replace('\\','\\\\')
-            curpipe = '\\\\.\\pipe\\geth.%s'%(k)
-            #curpipe = curpipe.replace('\\','\\\\')
-        else:
-            curpipe = '/tmp/geth.%s'%(k)
-        ntex.set_value('Node.DataDir',curdatadir)
-        ntex.set_value('Node.IPCPath',curpipe)
-
-        outs = ntex.dumps()
-        curtoml = os.path.join(curdatadir,'%s.toml'%(k))
-        write_file(outs,curtoml)
+        curtoml = get_user_toml(args,k)
         p = run_geth_with_config(args,curtoml,k)
         sys.stdout.write('[%s] pid [%d]\n'%(k,p.pid))
 
@@ -551,7 +580,7 @@ def execjs_handler(args,parser):
     return
 
 
-def clean_handler(args,parser):
+def cleandata_handler(args,parser):
     set_logging(args)
     s = read_file(args.subnargs[0])
     rdict = json.loads(s)
@@ -578,7 +607,8 @@ CFG_NETWORKID = 'Eth.NetworkId'
 
 CFG_DEF_VALUES = {
     'Node.P2P.BootstrapNodes' : [],
-    'Node.P2P.BootstrapNodesV5' : []
+    'Node.P2P.BootstrapNodesV5' : [],
+    'Eth.SyncMode' : 'full'
 }
 
 
@@ -648,7 +678,7 @@ def load_base_parser(parser):
         "execjs<%s.execjs_handler>##jscmds ... to get the process##" : {
             "$" : "+"
         },
-        "clean<%s.clean_handler>##newconfig to clean datadir##" : {
+        "cleandata<%s.cleandata_handler>##newconfig to clean datadir##" : {
             "$" : 1
         },
         "makecfg<%s.makecfg_handler>##[num] [startport] to set default value for config default 5 startport 10000##" : {
