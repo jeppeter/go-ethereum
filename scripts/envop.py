@@ -5,8 +5,8 @@ import sys
 import logging
 
 
-def is_win():
-	if sys.platform == 'win32':
+def is_windows():
+	if sys.platform == 'win32' or sys.platform == 'cygwin':
 		return True
 	return False
 
@@ -17,10 +17,5 @@ def is_unix():
 
 def is_linux():
 	if sys.platform == 'linux':
-		return True
-	return False
-
-def is_cygwin():
-	if sys.platform == 'cygwin':
 		return True
 	return False

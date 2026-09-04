@@ -13,12 +13,13 @@ import json
 import psutil
 import signal
 import time
+import shutil
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
 from loglib import set_logging, load_log_commandline,log_command_prefix
 from fileop import read_file,write_file,make_directory_safe,mktemp_file
-from envop import is_win,is_linux,is_cygwin
+from envop import is_windows,is_linux
 from tomlex import TomlEx
 from strop import rand_buffer
 
@@ -39,19 +40,19 @@ def compile_build_target(args):
     retval = False
     builddir = os.path.join(args.topdir,'build')
     buildcmd = os.path.join(builddir,'build')
-    if is_win() or is_cygwin():
+    if is_windows():
         buildcmd += '.exe'
     if os.path.exists(buildcmd):
         return True
     # now to go for
     cmds = []
-    if is_win() or is_cygwin():
+    if is_windows():
         cmds.append('go.exe')
     else:
         cmds.append('go')
     cmds.append('build')
     cmds.append('-o')
-    if is_win() or is_cygwin():
+    if is_windows():
         cmds.append('build.exe')
     else:
         cmds.append('build')
@@ -78,14 +79,14 @@ def compile_build_target(args):
 
 def build_checkbuild(topdir):
     cmds = []
-    if is_win()  or is_cygwin():
+    if is_windows():
         checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
     else:
         checkbuild = os.path.join(topdir,'scripts','checkbuild')
     checkbuildgo = os.path.join(topdir,'scripts','checkbuild.go')
     if os.path.exists(checkbuild):
         return True
-    if is_win() or is_cygwin():
+    if is_windows():
         cmds.append('go.exe')
     else:
         cmds.append('go')
@@ -108,7 +109,7 @@ def get_goos_goarch(topdir):
         raise Exception('can not checkbuild ok')
     goos = ''
     goarch = ''
-    if is_win()  or is_cygwin():
+    if is_windows():
         checkbuild = os.path.join(topdir,'scripts','checkbuild.exe')
     else:
         checkbuild = os.path.join(topdir,'scripts','checkbuild')
@@ -141,11 +142,8 @@ def compile_single_target(args,target):
         _ , defgoarch = get_goos_goarch(args.topdir)
 
 
-    if is_win() or is_cygwin():
-        if is_cygwin():
-            cmds.append('./build/build.exe')
-        else:
-            cmds.append('.\\build\\build.exe')
+    if is_windows():
+        cmds.append('.\\build\\build.exe')
     else:
         cmds.append('./build/build')
     cmds.append('install')
@@ -153,7 +151,7 @@ def compile_single_target(args,target):
     cmds.append(defgoarch)
     cmds.append('-os')
     cmds.append(defgoos)
-    if is_win() or is_cygwin():
+    if is_windows():
         if is_cygwin():
             cmds.append('./cmd/%s'%(target))
         else:
@@ -197,7 +195,7 @@ def compile_handler(args,parser):
     sys.exit(0)
 
 def get_gethbin(args):
-    if is_win() or is_cygwin():
+    if is_windows():
         gethbin = os.path.join(args.topdir,'build','bin','cmd','geth.exe')
     else:
         gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
@@ -239,7 +237,7 @@ def check_node_modules(args):
         return True
     retval = False
     cmds = []
-    if is_win() or is_cygwin():
+    if is_windows():
         cmds.append('npm.cmd')
     else:
         cmds.append('npm')
@@ -260,7 +258,7 @@ def node_init_genesis(args):
     if not retval:
         return retval
     cmds = []
-    if is_cygwin() or is_win():
+    if is_windows():
         cmds.append('node.exe')
     else:
         cmds.append('node')
@@ -293,7 +291,7 @@ def init_datadir_genesis(args,datadir,gensisfile):
 PASSWORD_KEYWORD = 'PASSWORD.KEY'
 
 def get_user_datadir(args,username):
-    return os.path.join(args.topdir,'datadir_%s'%(username))
+    return os.path.join(args.datadir,'datadir_%s'%(username))
 
 def username_datadir_init(args,username,rdict,gensisfile):
     datadir = get_user_datadir(args,username)
@@ -409,7 +407,8 @@ def run_geth_with_config(args,tomlfile,key):
     cmds.append(tomlfile)
     cmds.append('--verbosity')
     cmds.append('5')
-    logfile = os.path.join(args.topdir,'%s.log'%(key))
+    curdatadir = get_user_datadir(args,key)
+    logfile = os.path.join(curdatadir,'%s.log'%(key))
     if os.path.exists(logfile):
         os.remove(logfile)
     cmds.append('--log.file')
@@ -417,7 +416,7 @@ def run_geth_with_config(args,tomlfile,key):
     cmds.append('--log.format')
     cmds.append('logfmt')
     devnullfile = open(os.devnull,'wb')
-    if is_cygwin() or is_win():
+    if is_windows():
         flags = 0
         flags |= 0x00000008  # DETACHED_PROCESS
         flags |= 0x00000200  # CREATE_NEW_PROCESS_GROUP
@@ -445,8 +444,8 @@ def runproc_handler(args,parser):
     for k in rdict.keys():
         ntex = toml_set_value(tex,rdict,k)
         # now to make dir
-        curdatadir = os.path.join(args.topdir,'datadir_%s'%(k))
-        if is_win() or is_cygwin():
+        curdatadir = get_user_datadir(args,k)
+        if is_windows():
             #curdatadir = curdatadir.replace('\\','\\\\')
             curpipe = '\\\\.\\pipe\\geth.%s'%(k)
             #curpipe = curpipe.replace('\\','\\\\')
@@ -456,7 +455,7 @@ def runproc_handler(args,parser):
         ntex.set_value('Node.IPCPath',curpipe)
 
         outs = ntex.dumps()
-        curtoml = os.path.join(args.topdir,'%s.toml'%(k))
+        curtoml = os.path.join(curdatadir,'%s.toml'%(k))
         write_file(outs,curtoml)
         p = run_geth_with_config(args,curtoml,k)
         sys.stdout.write('[%s] pid [%d]\n'%(k,p.pid))
@@ -501,7 +500,7 @@ def killproc_window(args):
         ps = psutil.process_iter(['name','exe','pid'])
         tokill = []
         for p in ps:
-            if (is_cygwin() or is_win()) and p.name() == 'geth.exe':
+            if is_windows() and p.name() == 'geth.exe':
                 if maxcnt == 1:
                     sys.stdout.write('gethbin %s\n'%(p.pid))
                 tokill.append(p)                    
@@ -519,7 +518,7 @@ def killproc_window(args):
 def killproc_handler(args,parser):
     set_logging(args)
 
-    if is_win() or is_cygwin():
+    if is_windows():
         killproc_window(args)
     else:
         killproc_linux(args)
@@ -552,6 +551,70 @@ def execjs_handler(args,parser):
     return
 
 
+def clean_handler(args,parser):
+    set_logging(args)
+    s = read_file(args.subnargs[0])
+    rdict = json.loads(s)
+    totalret = True
+    for k in rdict.keys():
+        curdatadir = get_user_datadir(args,k)
+        retval = True
+        try:
+            if os.path.exists(curdatadir):
+                shutil.rmtree(curdatadir)
+        except:
+            retval = False
+            logging.error('%s'%(traceback.format_exc()))
+        if not retval:
+            totalret = False
+    if not totalret:
+        sys.exit(3)
+    sys.exit(0)
+    return
+
+CFG_PORT_VALUES = ['Node.HTTPPort','Node.AuthPort','Node.WSPort']
+CFG_LISTEN_PORT = 'Node.P2P.ListenAddr'
+CFG_NETWORKID = 'Eth.NetworkId'
+
+CFG_DEF_VALUES = {
+    'Node.P2P.BootstrapNodes' : [],
+    'Node.P2P.BootstrapNodesV5' : []
+}
+
+
+def makecfg_handler(args,parser):
+    set_logging(args)
+    rdict = dict()
+    num = 5
+    defport = 10000
+    if len(args.subnargs) > 0:
+        num = int(args.subnargs[0])
+    if len(args.subnargs) > 1:
+        defport = int(args.subnargs[1])
+    idx = 0
+    curstartport = defport
+    while idx < num:
+        curk = 'signer%d'%(idx)
+        curdict = dict()
+        curport = curstartport
+        for k in CFG_PORT_VALUES:
+            curdict[k] = curport 
+            curport += 1
+        curdict[CFG_LISTEN_PORT] = ':%d'%(curport)
+        curport += 1
+        curdict[PASSWORD_KEYWORD] = '%s_%d'%(curk,curport)
+        curdict[CFG_NETWORKID] = args.networkid
+
+        for k,v in CFG_DEF_VALUES.items():
+            curdict[k]=v
+        rdict[curk] = curdict
+        idx += 1
+        curstartport += 10
+
+    outs = json.dumps(rdict,indent=4)
+    write_file(outs,args.output)
+    sys.exit(0)
+
 
 def load_base_parser(parser):
     commandline_fmt='''
@@ -559,14 +622,14 @@ def load_base_parser(parser):
         "input|i" : null,
         "output|o" : null,
         "topdir|T" : "%s",
+        "datadir|D" : "%s",
         "goproxy" : "https://goproxy.cn",
         "go111module" : "auto",
         "goos" : null,
         "goarch" : null,
         "rpcpipe" : null,
-        "signerdir" : "%s",
         "reserved:R" : false,
-        "apidir" : "%s",
+        "networkid" : 2363,
         "compile<%s.compile_handler>##[target]to compile default geth can accept %s ##" : {
             "$" : "*"
         },
@@ -582,18 +645,22 @@ def load_base_parser(parser):
         "killproc<%s.killproc_handler>##to kill process running##" : {
             "$" : 0
         },
-        "execjs<execjs_handler>##jscmds ... to get the process##" : {
+        "execjs<%s.execjs_handler>##jscmds ... to get the process##" : {
             "$" : "+"
+        },
+        "clean<%s.clean_handler>##newconfig to clean datadir##" : {
+            "$" : 1
+        },
+        "makecfg<%s.makecfg_handler>##[num] [startport] to set default value for config default 5 startport 10000##" : {
+            "$" : "*"
         }
     }
     '''
     topdir = get_topdir()
-    signerdir = os.path.join(topdir,'datadir_signer')
-    apidir = os.path.join(topdir,'datadir_api')
-    if is_win():
+    datadir = os.path.join(topdir,'datastore')
+    if is_windows():
         topdir = topdir.replace('\\','\\\\')
-        signerdir = signerdir.replace('\\','\\\\')
-        apidir = apidir.replace('\\','\\\\')
+        datadir = datadir.replace('\\','\\\\')
 
     compiledir = get_compile_targets()
     compiles = ''
@@ -601,7 +668,7 @@ def load_base_parser(parser):
         if len(compiles) > 0:
             compiles += ','
         compiles += '%s'%(d)
-    commandline = commandline_fmt%(topdir,signerdir,apidir,__name__,compiles,__name__,__name__,__name__,__name__)
+    commandline = commandline_fmt%(topdir,datadir,__name__,compiles,__name__,__name__,__name__,__name__,__name__,__name__,__name__)
     parser.load_command_line_string(commandline)
     return parser
 

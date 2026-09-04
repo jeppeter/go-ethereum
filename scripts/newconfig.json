@@ -1,6 +1,7 @@
 {
-	"signer" : {
+	"signer1" : {
 		"Eth.NetworkId" : 2363,
+		"Eth.SyncMode" : "full",
 		"Node.HTTPPort" : 9545,
 		"Node.AuthPort" : 9551,
 		"Node.WSPort" : 9546,
@@ -9,8 +10,9 @@
 		"Node.P2P.ListenAddr" : ":10303",
 		"PASSWORD.KEY" : "3302002"
 	},
-	"api" : {
+	"signer2" : {
 		"Eth.NetworkId" : 2363,
+		"Eth.SyncMode" : "full",
 		"Node.HTTPPort" : 10545,
 		"Node.AuthPort" : 10551,
 		"Node.WSPort" : 10546,
