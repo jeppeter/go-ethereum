@@ -10,7 +10,6 @@ import logging
 import subprocess
 import cmdpack
 import json
-import psutil
 import signal
 import time
 import shutil
@@ -22,6 +21,7 @@ from fileop import read_file,write_file,make_directory_safe,mktemp_file
 from envop import is_windows,is_linux
 from tomlex import TomlEx
 from strop import rand_buffer
+from procop import ProcExpolore
 
 
 def get_topdir():
@@ -492,20 +492,23 @@ def runproc_handler(args,parser):
 def killproc_linux(args):
     cont = True
     maxcnt = 0 
+    procs = ProcExpolore()
     while cont:
         cont = False
         maxcnt += 1
-        ps = psutil.process_iter(['name','pid'])
+        procs.snapshot()
+        ps = procs.get_result()
         tokill = []
-        for p in ps:
-            if p.name() == 'geth':
+        for k,v in ps.items():
+            if v.firstarg == 'geth' or v.firstarg.endswith('/geth'):
                 sys.stdout.write('gethbin %s\n'%(p.pid))
-                tokill.append(p)
+                tokill.append(k)
+                cont = True
         idx = 0
         while idx < len(tokill):
             try:
                 logging.info('kill [%d]'%(tokill[idx].pid))
-                os.kill(tokill[idx].pid,signal.SIGINT)
+                os.kill(tokill[idx],signal.SIGINT)
             except:
                 cont = True
                 #if maxcnt >= 3:
@@ -519,26 +522,30 @@ def killproc_linux(args):
 
 def killproc_window(args):
     cont = True
-    maxcnt = 0 
+    maxcnt = 0
+    procs = ProcExpolore()
     while cont:
         cont = False
         maxcnt += 1
-        ps = psutil.process_iter(['name','exe','pid'])
+        procs.snapshot()
+        ps = procs.get_result()
         tokill = []
-        for p in ps:
-            if is_windows() and p.name() == 'geth.exe':
-                if maxcnt == 1:
-                    sys.stdout.write('gethbin %s\n'%(p.pid))
-                tokill.append(p)                    
+        for k,v in ps.items():
+            if v.firstarg == 'geth.exe' or (v.firstarg.endswith('\\geth.exe')):
+                logging.info('pid %d'%(k))
+                tokill.append(k)
+                cont = True
         idx = 0
         while idx < len(tokill):
             try:
-                tokill[idx].send_signal(signal.CTRL_C_EVENT)
+                os.kill(tokill[idx],signal.CTRL_C_EVENT)
             except:
                 pass
                 #if maxcnt >= 3:
                 #    logging.error('%s'%(traceback.format_exc()))
             idx += 1
+        if cont:
+            time.sleep(1.0)
     return
 
 def killproc_handler(args,parser):
