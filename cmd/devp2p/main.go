@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum/go-ethereum/console"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/flags"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -29,6 +30,7 @@ import (
 var app = flags.NewApp("go-ethereum devp2p tool")
 
 func init() {
+	console.SetColorConsole(os.Stdout)
 	app.Flags = append(app.Flags, debug.Flags...)
 	app.Before = func(ctx *cli.Context) error {
 		flags.MigrateGlobalFlags(ctx)

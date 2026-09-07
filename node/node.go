@@ -183,6 +183,7 @@ func (n *Node) Start() error {
 
 	// Check if endpoint startup failed.
 	if err != nil {
+		log.Error(fmt.Sprintf("err %v", err))
 		n.doClose(nil)
 		return err
 	}
@@ -190,6 +191,7 @@ func (n *Node) Start() error {
 	var started []Lifecycle
 	for _, lifecycle := range lifecycles {
 		if err = lifecycle.Start(); err != nil {
+			log.Error(fmt.Sprintf("lifecycle.Start err %v", err))
 			break
 		}
 		started = append(started, lifecycle)
@@ -269,11 +271,13 @@ func (n *Node) openEndpoints() error {
 	// start networking endpoints
 	n.log.Info("Starting peer-to-peer node", "instance", n.server.Name)
 	if err := n.server.Start(); err != nil {
+		log.Error(fmt.Sprintf("n.server Start error %v", err))
 		return convertFileLockError(err)
 	}
 	// start RPC endpoints
 	err := n.startRPC()
 	if err != nil {
+		log.Error(fmt.Sprintf("startRPC error %v", err))
 		n.stopRPC()
 		n.server.Stop()
 	}
@@ -376,12 +380,14 @@ func (n *Node) obtainJWTSecret(cliParam string) ([]byte, error) {
 // assumptions about the state of the node.
 func (n *Node) startRPC() error {
 	if err := n.startInProc(n.rpcAPIs); err != nil {
+		log.Error(fmt.Sprintf("startInProc error %v", err))
 		return err
 	}
 
 	// Configure IPC.
 	if n.ipc.endpoint != "" {
 		if err := n.ipc.start(n.rpcAPIs); err != nil {
+			log.Error(fmt.Sprintf("n.ipc.start error %v", err))
 			return err
 		}
 	}
@@ -396,7 +402,9 @@ func (n *Node) startRPC() error {
 	}
 
 	initHttp := func(server *httpServer, port int) error {
+		log.Trace(fmt.Sprintf("initHttp server [%s:%d]", n.config.HTTPHost, port))
 		if err := server.setListenAddr(n.config.HTTPHost, port); err != nil {
+			log.Error(fmt.Sprintf("initHttp server.setListenAddr error %v", err))
 			return err
 		}
 		if err := server.enableRPC(openAPIs, httpConfig{
@@ -406,6 +414,7 @@ func (n *Node) startRPC() error {
 			prefix:             n.config.HTTPPathPrefix,
 			rpcEndpointConfig:  rpcConfig,
 		}); err != nil {
+			log.Error(fmt.Sprintf("server.enableRPC error %v", err))
 			return err
 		}
 		servers = append(servers, server)
@@ -414,7 +423,9 @@ func (n *Node) startRPC() error {
 
 	initWS := func(port int) error {
 		server := n.wsServerForPort(port, false)
+		log.Trace(fmt.Sprintf("initWS server [%s:%d]", n.config.WSHost, port))
 		if err := server.setListenAddr(n.config.WSHost, port); err != nil {
+			log.Error(fmt.Sprintf("initWS server.setListenAddr error %v", err))
 			return err
 		}
 		if err := server.enableWS(openAPIs, wsConfig{
@@ -423,6 +434,7 @@ func (n *Node) startRPC() error {
 			prefix:            n.config.WSPathPrefix,
 			rpcEndpointConfig: rpcConfig,
 		}); err != nil {
+			log.Error(fmt.Sprintf("initWS servers.enableWS error %v", err))
 			return err
 		}
 		servers = append(servers, server)
@@ -432,7 +444,9 @@ func (n *Node) startRPC() error {
 	initAuth := func(port int, secret []byte) error {
 		// Enable auth via HTTP
 		server := n.httpAuth
+		log.Trace(fmt.Sprintf("initAuth server [%s:%d]", n.config.AuthAddr, port))
 		if err := server.setListenAddr(n.config.AuthAddr, port); err != nil {
+			log.Error(fmt.Sprintf("initAuth servers.setListenAddr error %v", err))
 			return err
 		}
 		sharedConfig := rpcEndpointConfig{
@@ -449,6 +463,7 @@ func (n *Node) startRPC() error {
 			rpcEndpointConfig:  sharedConfig,
 		})
 		if err != nil {
+			log.Error(fmt.Sprintf("initAuth servers.enableRPC error %v", err))
 			return err
 		}
 		servers = append(servers, server)
@@ -456,6 +471,7 @@ func (n *Node) startRPC() error {
 		// Enable auth via WS
 		server = n.wsServerForPort(port, true)
 		if err := server.setListenAddr(n.config.AuthAddr, port); err != nil {
+			log.Error(fmt.Sprintf("initAuth wsServerForPort servers.setListenAddr error %v", err))
 			return err
 		}
 		if err := server.enableWS(allAPIs, wsConfig{
@@ -464,6 +480,7 @@ func (n *Node) startRPC() error {
 			prefix:            DefaultAuthPrefix,
 			rpcEndpointConfig: sharedConfig,
 		}); err != nil {
+			log.Error(fmt.Sprintf("initAuth servers.enableWS error %v", err))
 			return err
 		}
 		servers = append(servers, server)
@@ -473,14 +490,18 @@ func (n *Node) startRPC() error {
 	// Set up HTTP.
 	if n.config.HTTPHost != "" {
 		// Configure legacy unauthenticated HTTP.
+		log.Trace("call initHttp")
 		if err := initHttp(n.http, n.config.HTTPPort); err != nil {
+			log.Error(fmt.Sprintf("initHttp error %v", err))
 			return err
 		}
 	}
 	// Configure WebSocket.
 	if n.config.WSHost != "" {
 		// legacy unauthenticated
+		log.Trace("call initWS")
 		if err := initWS(n.config.WSPort); err != nil {
+			log.Error(fmt.Sprintf("initWS error %v", err))
 			return err
 		}
 	}
@@ -488,15 +509,19 @@ func (n *Node) startRPC() error {
 	if len(openAPIs) != len(allAPIs) {
 		jwtSecret, err := n.obtainJWTSecret(n.config.JWTSecret)
 		if err != nil {
+			log.Error(fmt.Sprintf("obtainJWTSecret error %v", err))
 			return err
 		}
+		log.Trace("call initAuth")
 		if err := initAuth(n.config.AuthPort, jwtSecret); err != nil {
+			log.Error(fmt.Sprintf("initAuth error %v", err))
 			return err
 		}
 	}
 	// Start the servers
 	for _, server := range servers {
 		if err := server.start(); err != nil {
+			log.Error(fmt.Sprintf("server.start error %v", err))
 			return err
 		}
 	}

@@ -1,0 +1,1 @@
+geth --networkid 2363 --datadir "./datadir1" --nodiscover --mine --miner.threads=1 --miner.etherbase 0xd5fb9b7d38d434e10ba8c5eb58488a7e87f5da75 --unlock 0xd5fb9b7d38d434e10ba8c5eb58488a7e87f5da75 --password password1.secret --nodiscover --netrestrict="10.0.0.0/28" --http --http.addr 127.0.0.1 --http.api eth,net,web3 --allow-insecure-unlock

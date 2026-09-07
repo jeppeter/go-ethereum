@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/console"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -262,6 +263,7 @@ The account is saved in encrypted format, you are prompted for a password.
 var app = flags.NewApp("Manage Ethereum account operations")
 
 func init() {
+	console.SetColorConsole(os.Stdout)
 	app.Name = "Clef"
 	app.Flags = []cli.Flag{
 		logLevelFlag,
