@@ -152,10 +152,7 @@ def compile_single_target(args,target):
     cmds.append('-os')
     cmds.append(defgoos)
     if is_windows():
-        if is_cygwin():
-            cmds.append('./cmd/%s'%(target))
-        else:
-            cmds.append('.\\cmd\\%s'%(target))
+        cmds.append('.\\cmd\\%s'%(target))
     else:
         cmds.append('./cmd/%s'%(target))
     try:
