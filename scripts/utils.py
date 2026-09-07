@@ -532,7 +532,8 @@ def killproc_window(args):
         tokill = []
         for k,v in ps.items():
             if v.firstarg == 'geth.exe' or (v.firstarg.endswith('\\geth.exe')):
-                logging.info('pid %d'%(k))
+                #logging.info('pid %d'%(k))
+                sys.stdout.write('kill [%d]\n'%(k))
                 tokill.append(k)
                 cont = True
         idx = 0
@@ -691,7 +692,10 @@ def load_base_parser(parser):
     }
     '''
     topdir = get_topdir()
-    datadir = os.path.join(topdir,'datastore')
+    if is_windows():
+        datadir = os.path.join(topdir,'datastore_windows')
+    else:
+        datadir = os.path.join(topdir,'datastore_linux')
     if is_windows():
         topdir = topdir.replace('\\','\\\\')
         datadir = datadir.replace('\\','\\\\')
