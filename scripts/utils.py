@@ -501,13 +501,13 @@ def killproc_linux(args):
         tokill = []
         for k,v in ps.items():
             if v.firstarg == 'geth' or v.firstarg.endswith('/geth'):
-                sys.stdout.write('gethbin %s\n'%(p.pid))
+                sys.stdout.write('gethbin %s\n'%(k))
                 tokill.append(k)
                 cont = True
         idx = 0
         while idx < len(tokill):
             try:
-                logging.info('kill [%d]'%(tokill[idx].pid))
+                logging.info('kill [%d]'%(tokill[idx]))
                 os.kill(tokill[idx],signal.SIGINT)
             except:
                 cont = True
