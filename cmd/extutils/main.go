@@ -36,6 +36,8 @@ func init() {
 		encrKeyCommand,
 		genkeyCommand,
 		iterchainCommand,
+		encgenCommand,
+		decgenCommand,
 	}
 
 	app.Flags = slices.Concat(app.Flags, debug.Flags, ExtFlags)

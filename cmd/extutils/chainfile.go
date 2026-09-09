@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/cockroachdb/pebble"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/urfave/cli/v2"
+	"os"
 )
 
 var iterchainCommand = &cli.Command{
@@ -15,6 +18,24 @@ var iterchainCommand = &cli.Command{
 	ArgsUsage:   "chaindir",
 	Flags:       []cli.Flag{},
 	Description: `to iterater chain`,
+}
+
+var encgenCommand = &cli.Command{
+	Action:      encode_generator,
+	Name:        "encgen",
+	Usage:       "jsonfile to make generator",
+	ArgsUsage:   "jsonfile",
+	Flags:       []cli.Flag{},
+	Description: `to make generator`,
+}
+
+var decgenCommand = &cli.Command{
+	Action:      decode_generator,
+	Name:        "decgen",
+	Usage:       "binfile to make generator",
+	ArgsUsage:   "binfile",
+	Flags:       []cli.Flag{},
+	Description: `to decode generator`,
 }
 
 func iter_chain(ctx *cli.Context) (err error) {
@@ -45,6 +66,84 @@ func iter_chain(ctx *cli.Context) (err error) {
 	for niter.First(); niter.Valid(); niter.Next() {
 		fmt.Printf("key %v=%v\n", niter.Key(), niter.Value())
 	}
+
+	err = nil
+	return
+}
+
+// journalGenerator is a disk layer entry containing the generator progress marker.
+type journalGenerator struct {
+	// Indicator that whether the database was in progress of being wiped.
+	// It's deprecated but keep it here for backward compatibility.
+	Wiping bool `json:,omitemtpy`
+
+	Done     bool   `json:,omitemtpy` // Whether the generator finished creating the snapshot
+	Marker   []byte `json:,omitemtpy`
+	Accounts uint64 `json:,omitemtpy`
+	Slots    uint64 `json:,omitemtpy`
+	Storage  uint64 `json:,omitemtpy`
+}
+
+func decode_generator(ctx *cli.Context) (err error) {
+	var binfile string
+	var inb []byte
+	var gen *journalGenerator
+	var outb []byte
+	debug.Setup(ctx)
+	if ctx.Args().Len() < 1 {
+		err = fmt.Errorf("need binfile")
+		return
+	}
+	binfile = ctx.Args().Get(0)
+	inb, err = os.ReadFile(binfile)
+	if err != nil {
+		return
+	}
+
+	gen = &journalGenerator{}
+	err = rlp.DecodeBytes(inb, gen)
+	if err != nil {
+		return
+	}
+
+	outb, err = json.Marshal(gen)
+	if err != nil {
+		return
+	}
+
+	fmt.Printf("%s", string(outb))
+
+	err = nil
+	return
+}
+
+func encode_generator(ctx *cli.Context) (err error) {
+	var jsonfile string
+	var inb []byte
+	var gen *journalGenerator
+	var outb []byte
+	debug.Setup(ctx)
+	if ctx.Args().Len() < 1 {
+		err = fmt.Errorf("need jsonfile")
+		return
+	}
+	jsonfile = ctx.Args().Get(0)
+	inb, err = os.ReadFile(jsonfile)
+	if err != nil {
+		return
+	}
+
+	gen = &journalGenerator{}
+	err = json.Unmarshal(inb, gen)
+	if err != nil {
+		return
+	}
+
+	outb, err = rlp.EncodeToBytes(gen)
+	if err != nil {
+		return
+	}
+	fmt.Printf("%v\n", outb)
 
 	err = nil
 	return
