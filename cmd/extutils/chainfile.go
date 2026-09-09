@@ -38,6 +38,15 @@ var decgenCommand = &cli.Command{
 	Description: `to decode generator`,
 }
 
+var encrlpvarCommand = &cli.Command{
+	Action:      encode_rlp_variable,
+	Name:        "encrlpvar",
+	Usage:       "jsonfile to encode rlp variable",
+	ArgsUsage:   "jsonfile",
+	Flags:       []cli.Flag{},
+	Description: `to encode rlp variable`,
+}
+
 func iter_chain(ctx *cli.Context) (err error) {
 	debug.Setup(ctx)
 	var opt *pebble.Options = &pebble.Options{}
@@ -147,4 +156,9 @@ func encode_generator(ctx *cli.Context) (err error) {
 
 	err = nil
 	return
+}
+
+type RlpVariable struct {
+	Bval bool `json:"bval",omitemtpy` // to make Bval
+
 }

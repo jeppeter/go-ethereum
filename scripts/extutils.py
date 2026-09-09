@@ -22,6 +22,21 @@ from envop import is_windows,is_linux
 from tomlex import TomlEx
 from strop import rand_buffer
 
+class RlpDecode(object):
+    def __init__(self):
+        return
+
+    def decode(self,types,inb):
+        if types == 'raw':
+            return inb,len(inb)
+        elif types == 'bigint':
+            # now we should give 
+            if len(inb) < 1:
+                raise Exception('bigint len < 1')
+            if inb[0] >= 0x80:
+            else:
+                
+
 class PebbleOperation(object):
     def __init__(self):
         self.opname = ''
