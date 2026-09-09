@@ -315,6 +315,8 @@ func New(file string, cache int, handles int, namespace string, readonly bool) (
 	if err != nil {
 		return nil, err
 	}
+	opt.EnsureDefaults()
+	log.Trace(fmt.Sprintf("open [%s] with option\n%s", file, opt.String()))
 	db.db = innerDB
 
 	db.compTimeMeter = metrics.GetOrRegisterMeter(namespace+"compact/time", nil)

@@ -196,14 +196,18 @@ def get_gethbin(args):
         gethbin = os.path.join(args.topdir,'build','bin','cmd','geth.exe')
     else:
         gethbin = os.path.join(args.topdir,'build','bin','cmd','geth')
-    return gethbin
+    retcmds = [gethbin]
+    if args.verbose == 0 and args.subcommand != 'runproc':
+        retcmds.append('--verbosity')
+        retcmds.append('5')
+    return retcmds
 
 def new_verbose_mode(args):
     return ['--verbosity','0']
 
 
 def generate_account(args,datadir,secfile):
-    cmds = [get_gethbin(args)]
+    cmds = get_gethbin(args)
     cmds.extend(new_verbose_mode(args))
     cmds.append('account')
     cmds.append('new')
@@ -271,8 +275,8 @@ def node_init_genesis(args):
 
 def init_datadir_genesis(args,datadir,gensisfile):
     cmds = []
-    cmds.append(get_gethbin(args))
-    cmds.extend(new_verbose_mode(args))
+    cmds.extend(get_gethbin(args))
+    #cmds.extend(new_verbose_mode(args))
     cmds.append('init')
     cmds.append('--datadir')
     cmds.append(datadir)
@@ -376,7 +380,7 @@ def initpriv_handler(args,parser):
 
 def run_geth_dumpconfig(args):
     retfile = mktemp_file('eth-config.XXXXXXXX.toml')
-    cmds = [get_gethbin(args)]
+    cmds = get_gethbin(args)
     cmds.append('dumpconfig')
     cmds.append(retfile)
     try:
@@ -437,7 +441,7 @@ def newconfig_handler(args,parser):
     return
 
 def run_geth_with_config(args,tomlfile,key):
-    cmds = [get_gethbin(args)]
+    cmds = get_gethbin(args)
     cmds.append('--config')
     cmds.append(tomlfile)
     cmds.append('--verbosity')
@@ -545,8 +549,6 @@ def killproc_window(args):
                 #if maxcnt >= 3:
                 #    logging.error('%s'%(traceback.format_exc()))
             idx += 1
-        if cont:
-            time.sleep(1.0)
     return
 
 def killproc_handler(args,parser):
@@ -564,7 +566,7 @@ def exec_js(args,jsstr):
     rpcpipe = args.rpcpipe
     if rpcpipe is None or len(rpcpipe) == 0:
         raise Exception('please set rpcpipe for connect')
-    cmds = [get_gethbin(args)]
+    cmds = get_gethbin(args)
     cmds.append('--exec')
     cmds.append(jsstr)
     cmds.append('attach')
