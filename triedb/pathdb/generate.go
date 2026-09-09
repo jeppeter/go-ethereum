@@ -211,6 +211,7 @@ func journalProgress(db ethdb.KeyValueWriter, marker []byte, stats *generatorSta
 		entry.Slots = stats.slots
 		entry.Storage = uint64(stats.storage)
 	}
+	log.Info(fmt.Sprintf("entry Done %v stats %p", entry.Done, stats))
 	blob, err := rlp.EncodeToBytes(entry)
 	if err != nil {
 		panic(err) // Cannot happen, here to catch dev errors
