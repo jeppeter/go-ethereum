@@ -43,7 +43,7 @@ func iter_chain(ctx *cli.Context) (err error) {
 	}
 
 	for niter.First(); niter.Valid(); niter.Next() {
-		fmt.Printf("key [%v]=[%v]\n", niter.Key(), niter.Value())
+		fmt.Printf("key %v=%v\n", niter.Key(), niter.Value())
 	}
 
 	err = nil
