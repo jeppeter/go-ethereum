@@ -14,6 +14,7 @@ import signal
 import time
 import shutil
 import rlp
+import struct
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
@@ -24,6 +25,9 @@ from tomlex import TomlEx
 from strop import rand_buffer
 
 
+SnapshotRoot=b'SnapshotRoot'
+SnapshotGenerator=b'SnapshotGenerator'
+GenesisPrefix=b'ethereum-genesis-'
 
 class PebbleOperation(object):
     def __init__(self):
@@ -37,24 +41,120 @@ class PebbleOperation(object):
         carr = re.split('\\s+',key)
         for c in carr:
             self.key += struct.pack('B',int(c))
-        if value is not None:
+        if value is not None and len(value) > 0:
             carr = re.split('\\s+',value)
             for c in carr:
                 self.value += struct.pack('B',int(c))
         return
 
-
-    def __str__(self):
-        rets = '%s'%(self.opname)
-        rets += ' ['
-        for k in self.key:
-            rets += ' %d'%(k)
+    def _default_value(self):
+        rets = ''
+        rets += '['
+        idx = 0
+        while idx < len(self.key):
+            if idx > 0:
+                rets += ' '
+            rets += '%d'%(self.key[idx])
+            idx += 1
         rets += ']'
         if len(self.value) > 0:
             rets += ' value ['
-            for k in self.value:
-                rets += ' %d'%(k)
+            idx = 0
+            while idx < len(self.value):
+                if idx > 0:
+                    rets += ' '
+                rets += '%d'%(self.value[idx])
+                idx += 1
             rets += ']'
+        return rets
+
+    def _fmt_hex(self,hexb,note):
+        rets = ' .%s 0x'%(note)
+        idx = 0
+        while idx < len(hexb):
+            rets += '%02x'%(hexb[idx])
+            idx += 1
+        if len(hexb) == 0:
+            rets += '0'
+        return rets
+
+    def _fmt_snapshot_root(self):
+        rets = 'SnapshotRoot %s'%(self._fmt_hex(self.value,'hash'))
+        return rets
+
+    def _fmt_bool(self,inb):
+        if len(inb) == 0:
+            return  'False'
+        return 'True'
+
+    def _fmt_byte(self,inb):
+        rets = 'byte("'
+        idx = 0
+        while idx < len(inb):
+            if idx == 0:
+                rets += '0x'
+            rets += '%02x'%(inb[idx])
+            idx += 1
+        rets += '")'
+        return rets
+
+    def _fmt_uint64(self,inb):
+        retval = 0
+        idx = 0
+        while idx < len(inb):
+            retval <<= 8
+            retval += inb[idx]
+            idx += 1
+        rets = '0x%x'%(retval)
+        return rets
+
+    def _fmt_snapshot_generator(self):
+        rets = 'SnapshotGenerator '
+        rc = rlp.decode(self.value)
+        if len(rc) >= 6:
+            rets += ' .Wiping %s'%(self._fmt_bool(rc[0]))
+            rets += ' .Done %s'%(self._fmt_bool(rc[1]))
+            rets += ' .Maker %s'%(self._fmt_byte(rc[2]))
+            rets += ' .Accounts %s'%(self._fmt_uint64(rc[3]))
+            rets += ' .Slots %s'%(self._fmt_uint64(rc[4]))
+            rets += ' .Storage %s'%(self._fmt_uint64(rc[5]))
+        else:
+            rets += ' %s'%(rc)
+        return rets
+
+    def _fmt_code(self):
+        rets = 'Code '
+        rets += self._fmt_hex(self.key[1:],'key')
+        rets += ' %s'%(self._fmt_hex(self.value,'value'))
+        return rets
+
+    def _fmt_state_idkey(self):
+        rets = 'State Key'
+        rets += ' %s'%(self._fmt_hex(self.key[1:],'root'))
+        rets += ' %s'%(self._fmt_hex(self.value,'id'))
+        return rets
+
+    def _fmt_genesis_state_key(self):
+        rets = ' Genesis State Key'
+        rets += ' %s'%(self._fmt_hex(self.key[len(GenesisPrefix):],'blockhash'))
+        rets += ' %s'%(self._fmt_hex(self.value,'data'))
+        return rets
+
+
+    def __str__(self):
+        rets = '%s '%(self.opname)
+        if len(self.key) == len(SnapshotRoot) and self.key == SnapshotRoot:
+            rets += self._fmt_snapshot_root()
+        elif len(self.key) == len(SnapshotGenerator) and self.key == SnapshotGenerator:
+            rets += self._fmt_snapshot_generator()
+        elif len(self.key) > 1 and self.key[0] == ord('c'):
+            rets += self._fmt_code()
+        elif len(self.key) > 1 and self.key[0] == ord('L'):
+            rets += self._fmt_state_idkey()
+        elif len(self.key) > len(GenesisPrefix) and self.key[:len(GenesisPrefix)] == GenesisPrefix:
+            rets += self._fmt_genesis_state_key()
+        else:
+            rets += self._default_value()
         return rets
 
 
@@ -69,9 +169,9 @@ class ParsePebble(object):
     def parse(self):
         ins = read_file(self.file)
         sarr = re.split('\n',ins)
-        putexpr = re.compile('Put key\\s+\\[([^\\]]+)\\]\\s+value\\s+\\[([^\\]]+)\\]')
-        deleteexpr = re.compile('Delete key\\s+\\[([^\\]]+)\\]')
-        delrangeexpr = re.compile('DeleteRange start\\s+\\[([^\\]]+)\\]\\s+end\\s+\\[([^\\]]+)\\]')
+        putexpr = re.compile('Put key\\s+\\[([^\\]]+)\\]\\s+value\\s+\\[([^\\]]*)\\]')
+        deleteexpr = re.compile('Delete key\\s+\\[([^\\]]*)\\]')
+        delrangeexpr = re.compile('DeleteRange start\\s+\\[([^\\]]+)\\]\\s+end\\s+\\[([^\\]]*)\\]')
         for l in sarr:
             l = l.rstrip('\r\n')
             logging.info('l[%s]'%(l))
