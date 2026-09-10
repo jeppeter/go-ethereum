@@ -13,29 +13,17 @@ import json
 import signal
 import time
 import shutil
+import rlp
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
 from loglib import set_logging, load_log_commandline,log_command_prefix
-from fileop import read_file,write_file,make_directory_safe,mktemp_file
+from fileop import read_file,write_file,make_directory_safe,mktemp_file,read_file_bytes,write_file_bytes
 from envop import is_windows,is_linux
 from tomlex import TomlEx
 from strop import rand_buffer
 
-class RlpDecode(object):
-    def __init__(self):
-        return
 
-    def decode(self,types,inb):
-        if types == 'raw':
-            return inb,len(inb)
-        elif types == 'bigint':
-            # now we should give 
-            if len(inb) < 1:
-                raise Exception('bigint len < 1')
-            if inb[0] >= 0x80:
-            else:
-                
 
 class PebbleOperation(object):
     def __init__(self):
@@ -125,6 +113,15 @@ def parsepebble_handler(args,parser):
     return
 
 
+def rlpdec_handler(args,parser):
+    set_logging(args)
+    for f in args.subnargs:
+        inb = read_file_bytes(f)
+        rc = rlp.decode(inb)
+        sys.stdout.write('%s\n'%(rc))
+    sys.exit(0)
+    return
+
 def load_base_parser(parser):
     commandline_fmt='''
     {
@@ -132,6 +129,9 @@ def load_base_parser(parser):
         "output|o" : null,
         "catchpebble<%s.parsepebble_handler>##logfile ... to parse log for pebble handle##" : {
             "$" : "*"
+        },
+        "rlpdec<rlpdec_handler>##file ... to decode rlp##" : {
+            "$" : "+"
         }
     }
     '''

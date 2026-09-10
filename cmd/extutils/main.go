@@ -38,6 +38,7 @@ func init() {
 		iterchainCommand,
 		encgenCommand,
 		decgenCommand,
+		encrlpvarCommand,
 	}
 
 	app.Flags = slices.Concat(app.Flags, debug.Flags, ExtFlags)
