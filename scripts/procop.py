@@ -200,7 +200,7 @@ class ProcExpolore(object):
 		return
 
 	def _read_subprocess_output(self,cmds,shellmode=False):
-		logging.info('cmds %s'%(cmds))
+		#logging.info('cmds %s'%(cmds))
 		p = subprocess.Popen(cmds,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=shellmode)
 		stdoutbuf,stderrbuf = p.communicate()
 		return stdoutbuf,stderrbuf

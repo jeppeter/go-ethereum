@@ -24,6 +24,15 @@ from strop import rand_buffer
 from procop import ProcExpolore
 
 
+PASSWORD_KEYWORD = 'PASSWORD.KEY'
+ADDRESS_KEYWORD = 'address'
+GENESIS_CONFIG = 'config'
+GENESIS_CHAINID = 'chainId'
+GENESIS_ALLOC = 'alloc'
+GENESIS_BLANCE = 'balance'
+
+ETH_WEI = 0xde0b6b3a7640000
+
 def get_topdir():
     dname = os.path.dirname(os.path.abspath(__file__))
     topdir = os.path.abspath(os.path.join(dname,'..'))
@@ -289,9 +298,13 @@ def init_datadir_genesis(args,datadir,gensisfile):
         logging.error('%s'%(traceback.format_exc()))
     return retval
 
-PASSWORD_KEYWORD = 'PASSWORD.KEY'
-GENESIS_CONFIG = 'config'
-GENESIS_CHAINID = 'chainId'
+def remove_file_or_stdout(args,fname,note):
+    if args.reserved:
+        sys.stdout.write('remove %s [%s]\n'%(note,fname))
+        os.remove(fname)
+    else:
+        sys.stdout.write('%s [%s]\n'%(note,fname))
+    return
 
 def get_user_datadir(args,username):
     return os.path.join(args.datadir,'datadir_%s'%(username))
@@ -318,7 +331,7 @@ def init_user_toml(args,username,rdict,tex):
     write_file(outs,curtoml)
     return True
 
-def username_datadir_init(args,username,rdict,gensisfile,tex):
+def username_datadir_account_init(args,username,rdict,tex):
     datadir = get_user_datadir(args,username)
     secfile = mktemp_file('secfile.XXXXXXX.password')
     password = ''
@@ -329,29 +342,70 @@ def username_datadir_init(args,username,rdict,gensisfile,tex):
     logging.info('[%s] password [%s]'%(username,password))
     write_file(password,secfile)
     retval = generate_account(args,datadir,secfile)
-    if not args.reserved:
-        os.remove(secfile)
+    remove_file_or_stdout(args,secfile,'secfile')
     if not retval:
         return retval
+    retval = init_user_toml(args,username,rdict,tex)
+    return retval
+
+def get_user_account_info(userdir):
+    keystoredir = os.path.join(userdir,'keystore')
+    files = os.listdir(keystoredir)
+    retinfos = []
+    for f in files:
+        curf = os.path.join(keystoredir,f)
+        if os.path.isfile(curf):
+            try:
+                ins = read_file(curf)
+                cdict = json.loads(ins)
+                if ADDRESS_KEYWORD in cdict.keys():
+                    retinfos.append(cdict)
+            except:
+                logging.error('%s'%(traceback.format_exc()))
+    return retinfos
+
+
+
+def username_generate_gensis(args,rdict,gensisfile):
     newgenesis = mktemp_file('genesis.XXXXXX.json')
     ins = read_file(gensisfile)
     cdict = json.loads(ins)
     if GENESIS_CONFIG not in cdict.keys():
         cdict[GENESIS_CONFIG] = dict()
     cdict[GENESIS_CONFIG][GENESIS_CHAINID] = args.networkid
+    cdict[GENESIS_ALLOC] = dict()
+    # now we should get the account and make allocate the account values
+    for k in rdict.keys():
+        curdatadir = get_user_datadir(args,k)
+        # now we should give 
+        infos = get_user_account_info(curdatadir)
+        if len(infos) > 0:
+            for uinfo in infos:
+                curaddress = uinfo[ADDRESS_KEYWORD]
+                curbalance = ETH_WEI * 100
+                if GENESIS_BLANCE in rdict[k].keys():
+                    if isinstance(rdict[k][GENESIS_BLANCE], int):
+                        curbalance = rdict[k][GENESIS_BLANCE]
+                    else:
+                        try:
+                            balances = rdict[k][GENESIS_BLANCE]
+                            curbalance = parse_int(balances)
+                        except:
+                            logging.error('%s'%(traceback.format_exc()))
+                adict = dict()
+                adict[GENESIS_BLANCE] = '0x%x'%(curbalance)
+                cdict[GENESIS_ALLOC][curaddress] = adict
     outs = json.dumps(cdict,indent=4)
     write_file(outs,newgenesis)
-    retval =  init_datadir_genesis(args,datadir,newgenesis)
-    if not args.reserved:
-        os.remove(newgenesis)
-    else:
-        logging.info('newgenesis %s'%(newgenesis))
-    if not retval:
-        return retval
-    retval = init_user_toml(args,username,rdict,tex)
-    return retval
-
-
+    logging.info('newgenesis [%s]\n%s'%(newgenesis,outs))
+    for k in rdict.keys():
+        curdatadir = get_user_datadir(args,k)
+        retval =  init_datadir_genesis(args,curdatadir,newgenesis)
+        if not retval :
+            remove_file_or_stdout(args,newgenesis,'newgenesis')
+            return retval
+    remove_file_or_stdout(args,newgenesis,'newgenesis')
+    return True
 
 
 
@@ -366,13 +420,17 @@ def initpriv_handler(args,parser):
     totalret = True
     tex = get_toml_value(args)
     for k in rdict.keys():
-        retval = username_datadir_init(args,k,rdict[k],gensisfile,tex)
+        retval = username_datadir_account_init(args,k,rdict[k],tex)
         if not retval:
             sys.stderr.write('init %s error\n'%(k))
             totalret = False
         else:
             if args.verbose == 0:
                 sys.stdout.write('init [%s] succ\n'%(k))
+    if totalret:
+        retval = username_generate_gensis(args,rdict,gensisfile)
+        if not retval:
+            totalret = False
     if not totalret:
         sys.exit(3)
     sys.exit(0)
@@ -393,7 +451,7 @@ def run_geth_dumpconfig(args):
 
 def toml_set_value(tex,rdict,key):
     for k,v in rdict.items():
-        if k != PASSWORD_KEYWORD:
+        if k != PASSWORD_KEYWORD and k != GENESIS_BLANCE:
             tex.set_value(k,v)
     return tex
 
@@ -665,7 +723,7 @@ def load_base_parser(parser):
         "goos" : null,
         "goarch" : null,
         "rpcpipe" : null,
-        "reserved:R" : false,
+        "reserved|R" : false,
         "networkid" : 2363,
         "compile<%s.compile_handler>##[target]to compile default geth can accept %s ##" : {
             "$" : "*"

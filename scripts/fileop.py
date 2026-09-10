@@ -263,7 +263,12 @@ def mktemp_file(templ='tempfile.XXXXXX',ind=None):
     tempf = None
     try:
         if ind is None:
-            ind = os.getcwd()
+            if 'TEMP' in os.environ.keys():
+                ind = os.environ['TEMP']
+            elif 'TMP' in os.environ.keys():
+                ind = os.environ['TMP']
+            else:
+                ind = os.getcwd()
         retval = make_directory_safe(ind)
         if not retval:
             return None

@@ -28,6 +28,7 @@ from strop import rand_buffer
 SnapshotRoot=b'SnapshotRoot'
 SnapshotGenerator=b'SnapshotGenerator'
 GenesisPrefix=b'ethereum-genesis-'
+BlockBodyPrefix=b'b'
 
 class PebbleOperation(object):
     def __init__(self):
@@ -48,7 +49,7 @@ class PebbleOperation(object):
         return
 
     def _default_value(self):
-        rets = ''
+        rets = ' ('
         rets += '['
         idx = 0
         while idx < len(self.key):
@@ -66,6 +67,7 @@ class PebbleOperation(object):
                 rets += '%d'%(self.value[idx])
                 idx += 1
             rets += ']'
+        rets += ')'
         return rets
 
     def _fmt_hex(self,hexb,note):
@@ -137,8 +139,94 @@ class PebbleOperation(object):
     def _fmt_genesis_state_key(self):
         rets = ' Genesis State Key'
         rets += ' %s'%(self._fmt_hex(self.key[len(GenesisPrefix):],'blockhash'))
-        rets += ' %s'%(self._fmt_hex(self.value,'data'))
+        try:
+            jsons = self.value.decode('utf-8')
+            rdict = json.loads(jsons)
+            idx = 0
+            rets += ' .value ['
+            for k,v in rdict.items():
+                idx += 1
+                if idx > 1:
+                    rets += ','
+                    
+                rets += '%s :{ '%(k)
+                cidx = 0
+                for ck,cv in v.items():
+                    cidx += 1
+                    if cidx > 1:
+                        rets += ','
+                    rets += ' .%s : %s '%(ck,cv)
+                rets += '}'
+            rets += ']'
+        except:
+            logging.error('%s'%(traceback.format_exc()))
+            rets += '%s'%(self._fmt_hex(self.value,'value'))
         return rets
+
+    def _fmt_block_body(self):
+        rets = ' Block body '
+        if len(self.key) < 9:
+            raise Exception('key for Block body %d < 9'%(len(self.key)))
+        blknumber = 0
+        idx = 1
+        while idx < 9:
+            blknumber <<= 8
+            blknumber += self.key[idx]
+            idx += 1
+
+        rets += ' .number 0x%x'%(blknumber)
+        rets += ' .hash 0x'
+        idx = 9
+        while idx < len(self.key):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+        try:
+            rc = rlp.decode(self.value)
+            if len(rc) == 0:
+                rets += ' .value None'
+            else:
+                rets += ' .value ['
+                cidx = 0
+                while cidx < len(rc):
+                    k = rc[cidx]
+                    if cidx > 0:
+                        rets += ','
+                    if len(k) > 0:
+                        rets += ' .transactions ['
+                        tidx = 0
+                        ts = k[0]
+                        while tidx < len(ts):
+                            if tidx > 0:
+                                rets += ','                                
+                            tidx += 1
+                        rets += ']'
+                    if len(k) > 1:
+                        rets += ' .uncles ['
+                        uidx = 0
+                        us = k[1]
+                        while uidx < len(us):
+                            if uidx > 0:
+                                rets += ','
+                            uidx += 1
+                        rets += ']'
+                    if len(k) > 2:
+                        rets += ' .withdraws ['
+                        widx = 0
+                        ws = k[2]
+                        while widx < len(ws):
+                            if widx > 0:
+                                rets += ','
+                            widx += 1
+                        rets += ']'
+                    cidx += 1
+                rets += ']'
+
+        except:
+            logging.error('%s'%(traceback.format_exc()))
+            rets += ' .value not parse'
+        return rets
+
+
 
 
     def __str__(self):
@@ -153,8 +241,9 @@ class PebbleOperation(object):
             rets += self._fmt_state_idkey()
         elif len(self.key) > len(GenesisPrefix) and self.key[:len(GenesisPrefix)] == GenesisPrefix:
             rets += self._fmt_genesis_state_key()
-        else:
-            rets += self._default_value()
+        elif len(self.key) >= len(BlockBodyPrefix) and self.key[:len(BlockBodyPrefix)] == BlockBodyPrefix:
+            rets += self._fmt_block_body()
+        rets += self._default_value()
         return rets
 
 
@@ -174,7 +263,7 @@ class ParsePebble(object):
         delrangeexpr = re.compile('DeleteRange start\\s+\\[([^\\]]+)\\]\\s+end\\s+\\[([^\\]]*)\\]')
         for l in sarr:
             l = l.rstrip('\r\n')
-            logging.info('l[%s]'%(l))
+            #logging.info('l[%s]'%(l))
             m = putexpr.findall(l)
             if m is not None and len(m) > 0:
                 op = PebbleOperation()

@@ -409,26 +409,6 @@ func (d *Database) Get(key []byte) ([]byte, error) {
 	return ret, nil
 }
 
-func get_caller_string(skip int) (outs string) {
-	var f string
-	var lineno int
-	var ok bool
-	var sidx int = skip
-	outs = ""
-	for {
-		_, f, lineno, ok = runtime.Caller(sidx)
-		if !ok {
-			break
-		}
-		if len(outs) > 0 {
-			outs += ";"
-		}
-		outs += fmt.Sprintf("[%d][%s:%d]", sidx, f, lineno)
-		sidx += 1
-	}
-	return
-}
-
 // Put inserts the given value into the key-value store.
 func (d *Database) Put(key []byte, value []byte) error {
 	d.quitLock.RLock()
@@ -436,7 +416,7 @@ func (d *Database) Put(key []byte, value []byte) error {
 	if d.closed {
 		return pebble.ErrClosed
 	}
-	callerstr := get_caller_string(2)
+	callerstr := common.GetCallerString(2)
 	log.Info(fmt.Sprintf("call %s Put key %v value %v", callerstr, key, value))
 
 	return d.db.Set(key, value, d.writeOptions)
@@ -449,7 +429,7 @@ func (d *Database) Delete(key []byte) error {
 	if d.closed {
 		return pebble.ErrClosed
 	}
-	callerstr := get_caller_string(2)
+	callerstr := common.GetCallerString(2)
 	log.Info(fmt.Sprintf("call %s Delete key %v", callerstr, key))
 
 	return d.db.Delete(key, d.writeOptions)
@@ -470,7 +450,7 @@ func (d *Database) DeleteRange(start, end []byte) error {
 	if end == nil {
 		end = ethdb.MaximumKey
 	}
-	callerstr := get_caller_string(2)
+	callerstr := common.GetCallerString(2)
 	log.Info(fmt.Sprintf("call %s DeleteRange start %v end %v", callerstr, start, end))
 	return d.db.DeleteRange(start, end, d.writeOptions)
 }
@@ -670,7 +650,7 @@ type batch struct {
 
 // Put inserts the given value into the batch for later committing.
 func (b *batch) Put(key, value []byte) error {
-	callerstr := get_caller_string(2)
+	callerstr := common.GetCallerString(2)
 	log.Info(fmt.Sprintf("%s batch Put key %v value %v", callerstr, key, value))
 	if err := b.b.Set(key, value, nil); err != nil {
 		return err
@@ -681,7 +661,7 @@ func (b *batch) Put(key, value []byte) error {
 
 // Delete inserts the key removal into the batch for later committing.
 func (b *batch) Delete(key []byte) error {
-	callerstr := get_caller_string(2)
+	callerstr := common.GetCallerString(2)
 	log.Info(fmt.Sprintf("%s batch Delete key %v", callerstr, key))
 	if err := b.b.Delete(key, nil); err != nil {
 		return err
@@ -699,7 +679,7 @@ func (b *batch) DeleteRange(start, end []byte) error {
 	if end == nil {
 		end = ethdb.MaximumKey
 	}
-	callerstr := get_caller_string(2)
+	callerstr := common.GetCallerString(2)
 	log.Info(fmt.Sprintf("%s batch DeleteRange start %v end %v", callerstr, start, end))
 	if err := b.b.DeleteRange(start, end, nil); err != nil {
 		return err
