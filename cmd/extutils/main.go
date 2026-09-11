@@ -40,6 +40,7 @@ func init() {
 		decgenCommand,
 		encrlpvarCommand,
 		decheaderCommand,
+		decreceiptsCommand,
 	}
 
 	app.Flags = slices.Concat(app.Flags, debug.Flags, ExtFlags)

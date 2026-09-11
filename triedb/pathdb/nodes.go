@@ -48,12 +48,14 @@ func newNodeSet(nodes map[common.Hash]map[string]*trienode.Node) *nodeSet {
 	if nodes == nil {
 		nodes = make(map[common.Hash]map[string]*trienode.Node)
 	}
+	log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 	s := &nodeSet{
 		accountNodes: make(map[string]*trienode.Node),
 		storageNodes: make(map[common.Hash]map[string]*trienode.Node),
 	}
 	for owner, subset := range nodes {
 		if owner == (common.Hash{}) {
+			log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 			s.accountNodes = subset
 		} else {
 			s.storageNodes[owner] = subset
@@ -120,6 +122,7 @@ func (s *nodeSet) merge(set *nodeSet) {
 			delta += int64(len(n.Blob) - len(orig.Blob))
 			overwrite.add(len(orig.Blob) + len(path))
 		}
+		log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 		s.accountNodes[path] = n
 	}
 
@@ -170,6 +173,7 @@ func (s *nodeSet) revertTo(db ethdb.KeyValueReader, nodes map[common.Hash]map[st
 					}
 					panic(fmt.Sprintf("non-existent account node (%v) blob: %v", path, crypto.Keccak256Hash(n.Blob).Hex()))
 				}
+				log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 				s.accountNodes[path] = n
 				delta += int64(len(n.Blob)) - int64(len(orig.Blob))
 			}
@@ -244,6 +248,7 @@ func (s *nodeSet) decode(r *rlp.Stream) error {
 	if err := r.Decode(&encoded); err != nil {
 		return fmt.Errorf("load nodes: %v", err)
 	}
+	log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 	s.accountNodes = make(map[string]*trienode.Node)
 	s.storageNodes = make(map[common.Hash]map[string]*trienode.Node)
 
@@ -252,8 +257,10 @@ func (s *nodeSet) decode(r *rlp.Stream) error {
 			// Account nodes
 			for _, n := range entry.Nodes {
 				if len(n.Blob) > 0 {
+					log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 					s.accountNodes[string(n.Path)] = trienode.New(crypto.Keccak256Hash(n.Blob), n.Blob)
 				} else {
+					log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 					s.accountNodes[string(n.Path)] = trienode.NewDeleted()
 				}
 			}
@@ -288,6 +295,7 @@ func (s *nodeSet) write(batch ethdb.Batch, clean *fastcache.Cache) int {
 
 // reset clears all cached trie node data.
 func (s *nodeSet) reset() {
+	log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
 	s.accountNodes = make(map[string]*trienode.Node)
 	s.storageNodes = make(map[common.Hash]map[string]*trienode.Node)
 	s.size = 0

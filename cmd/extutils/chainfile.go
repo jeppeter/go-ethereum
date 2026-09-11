@@ -58,6 +58,15 @@ var decheaderCommand = &cli.Command{
 	Description: `to decode header`,
 }
 
+var decreceiptsCommand = &cli.Command{
+	Action:      decode_receipts,
+	Name:        "decreceipts",
+	Usage:       "binfile to dec receipts",
+	ArgsUsage:   "binfile",
+	Flags:       []cli.Flag{},
+	Description: `to decode receitps`,
+}
+
 func iter_chain(ctx *cli.Context) (err error) {
 	debug.Setup(ctx)
 	var opt *pebble.Options = &pebble.Options{}
@@ -289,6 +298,47 @@ func decode_header(ctx *cli.Context) (err error) {
 	}
 
 	outb, err = json.Marshal(header)
+	if err != nil {
+		return
+	}
+
+	if ctx.IsSet(outputFlag.Name) {
+		output = ctx.String(outputFlag.Name)
+		err = os.WriteFile(output, outb, 0644)
+		if err != nil {
+			return
+		}
+	} else {
+		fmt.Printf("%s\n", string(outb))
+	}
+
+	err = nil
+	return
+}
+
+func decode_receipts(ctx *cli.Context) (err error) {
+	var binfile string
+	var inb []byte
+	var outb []byte
+	var output string
+	debug.Setup(ctx)
+	if ctx.Args().Len() < 1 {
+		err = fmt.Errorf("need binfile")
+		return
+	}
+	binfile = ctx.Args().Get(0)
+	inb, err = os.ReadFile(binfile)
+	if err != nil {
+		return
+	}
+
+	header := []*types.ReceiptForStorage{}
+	err = rlp.DecodeBytes(inb, &header)
+	if err != nil {
+		return
+	}
+
+	outb, err = json.Marshal(&header)
 	if err != nil {
 		return
 	}
