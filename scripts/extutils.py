@@ -15,6 +15,8 @@ import time
 import shutil
 import rlp
 import struct
+from Crypto.Hash import keccak
+
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,16 +30,32 @@ from strop import rand_buffer
 SnapshotRoot=b'SnapshotRoot'
 SnapshotGenerator=b'SnapshotGenerator'
 GenesisPrefix=b'ethereum-genesis-'
+configPrefix=b'ethereum-config-'
 BlockBodyPrefix=b'b'
+CodePrefix=b'c'
+stateIDPrefix=b'L'
+headerNumberPrefix=b'H'
+headerPrefix=b'h'
+headerHashSuffix=b'n'
+blockReceiptsPrefix=b'r'
+TrieNodeAccountPrefix=b'A'
+NUMBER8_SIZE = 8
+
+def calc_rlp_hash(inb):
+    nhash = keccak.new(digest_bits=256)
+    nhash.update(inb)
+    return nhash.hexdigest()
+
 
 class PebbleOperation(object):
     def __init__(self):
         self.opname = ''
         self.key = b''
         self.value = b''
+        self.lineno = -1
         return
 
-    def set_op(self,opname,key,value=None):
+    def set_op(self,opname,key,value=None,lineno=None):
         self.opname = opname
         carr = re.split('\\s+',key)
         for c in carr:
@@ -46,11 +64,13 @@ class PebbleOperation(object):
             carr = re.split('\\s+',value)
             for c in carr:
                 self.value += struct.pack('B',int(c))
+        if lineno is not None:
+            self.lineno = lineno
         return
 
     def _default_value(self):
         rets = ' ('
-        rets += '['
+        rets += ' key ['
         idx = 0
         while idx < len(self.key):
             if idx > 0:
@@ -186,39 +206,33 @@ class PebbleOperation(object):
                 rets += ' .value None'
             else:
                 rets += ' .value ['
-                cidx = 0
-                while cidx < len(rc):
-                    k = rc[cidx]
-                    if cidx > 0:
-                        rets += ','
-                    if len(k) > 0:
-                        rets += ' .transactions ['
-                        tidx = 0
-                        ts = k[0]
-                        while tidx < len(ts):
-                            if tidx > 0:
-                                rets += ','                                
-                            tidx += 1
-                        rets += ']'
-                    if len(k) > 1:
-                        rets += ' .uncles ['
-                        uidx = 0
-                        us = k[1]
-                        while uidx < len(us):
-                            if uidx > 0:
-                                rets += ','
-                            uidx += 1
-                        rets += ']'
-                    if len(k) > 2:
-                        rets += ' .withdraws ['
-                        widx = 0
-                        ws = k[2]
-                        while widx < len(ws):
-                            if widx > 0:
-                                rets += ','
-                            widx += 1
-                        rets += ']'
-                    cidx += 1
+                if len(rc) > 0:                    
+                    rets += ' .transactions ['
+                    tidx = 0
+                    ts = rc[0]
+                    while tidx < len(ts):
+                        if tidx > 0:
+                            rets += ','                                
+                        tidx += 1
+                    rets += ']'
+                if len(rc) > 1:
+                    rets += ' ,.uncles ['
+                    uidx = 0
+                    us = rc[1]
+                    while uidx < len(us):
+                        if uidx > 0:
+                            rets += ','
+                        uidx += 1
+                    rets += ']'
+                if len(rc) > 2:
+                    rets += ' ,.withdraws ['
+                    widx = 0
+                    ws = k[2]
+                    while widx < len(ws):
+                        if widx > 0:
+                            rets += ','
+                        widx += 1
+                    rets += ']'
                 rets += ']'
 
         except:
@@ -227,6 +241,136 @@ class PebbleOperation(object):
         return rets
 
 
+    def _fmt_header_number(self):
+        rets = ' Header Number'
+        rets += ' .hash 0x'
+        idx = 1
+        while idx < len(self.key):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+
+        rets += ' .number 0x'
+        idx = 0
+        while idx < len(self.value):
+            rets += '%02x'%(self.value[idx])
+            idx += 1
+        return rets
+
+    def _fmt_header_part(self,rc,idx,note):
+        rets = ''
+        if len(rc) > idx:
+            if idx > 0:
+                rets += ' ,.%s 0x'%(note)
+            else:
+                rets += ' .%s 0x'%(note)
+            cidx = 0
+            curb = rc[idx]
+            while cidx < len(curb):
+                rets += '%02x'%(curb[cidx])
+                cidx += 1
+            if len(curb) == 0:
+                rets += '00'
+        else:
+            if idx > 0:
+                rets += ' .%s None'%(note)
+            else:
+                rets += ' ,.%s None'%(note)
+        return rets
+
+
+    def _fmt_header(self):
+        rets = ' Header'
+        rets += ' .nubmer 0x' 
+        idx = 1
+        while idx < (1 + NUMBER8_SIZE) and idx < len(self.key):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+        rets += ' .hash 0x'
+        idx = 1 + NUMBER8_SIZE
+        while idx < len(self.key):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+        rc = rlp.decode(self.value)
+
+        rets += ' .header {'
+        rets += self._fmt_header_part(rc,0,'parentHash')
+        rets += self._fmt_header_part(rc,1,'sha3Uncles')
+        rets += self._fmt_header_part(rc,2,'miner')
+        rets += self._fmt_header_part(rc,3,'stateRoot')
+        rets += self._fmt_header_part(rc,4,'transactionsRoot')
+        rets += self._fmt_header_part(rc,5,'receiptsRoot')
+        rets += self._fmt_header_part(rc,6,'logsBloom')
+        rets += self._fmt_header_part(rc,7,'difficulty')
+        rets += self._fmt_header_part(rc,8,'number')
+        rets += self._fmt_header_part(rc,9,'gasLimit')
+        rets += self._fmt_header_part(rc,10,'gasUsed')
+        rets += self._fmt_header_part(rc,11,'timestamp')
+        rets += self._fmt_header_part(rc,12,'extraData')
+        rets += self._fmt_header_part(rc,13,'mixHash')
+        rets += self._fmt_header_part(rc,14,'nonce')
+        rets += self._fmt_header_part(rc,15,'baseFeePerGas')
+        rets += self._fmt_header_part(rc,16,'withdrawalsRoot')
+        rets += self._fmt_header_part(rc,17,'blobGasUsed')
+        rets += self._fmt_header_part(rc,18,'excessBlobGas')
+        rets +=  self._fmt_header_part(rc,19,'parentBeaconBlockRoot')
+        rets += ' ,.requestsHash 0x%s'%(calc_rlp_hash(self.value))
+        rets += '}'
+        return rets
+
+    def _fmt_header_hash(self):
+        rets = ' Header Hash'
+        rets += ' .number 0x'
+        idx = 1
+        while idx < (1+NUMBER8_SIZE):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+
+        rets += ' .hash 0x'
+        idx = 0
+        while idx < len(self.value):
+            rets += '%02x'%(self.value[idx])
+            idx += 1
+        return rets
+
+    def _fmt_block_receipts(self):
+        rets = ' Block Receipts'
+        rets += ' .number 0x'
+        idx = 1
+        while idx < (1+ NUMBER8_SIZE):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+        idx = 1 + NUMBER8_SIZE
+        rets += ' .hash 0x'
+        while idx < len(self.key):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+
+        rc = rlp.decode(self.value)
+        rets += ' .receipts ['
+        idx = 0
+        while idx < len(rc):
+            idx += 1
+        rets += ']'
+        return rets
+
+    def _fmt_config(self):
+        rets = ' Config'
+        rets += ' .hash 0x'
+        idx = len(configPrefix)
+        while idx < len(self.key):
+            rets += '%02x'%(self.key[idx])
+            idx += 1
+        try:
+            rs = self.value.decode('utf-8')
+            rets += ' .value %s'%(rs)
+        except:
+            logging.error('decode config error\n%s'%(traceback.format_exc()))
+            rets += ' .config None'
+        return rets
+
+    def _fmt_account(self):
+        rets = ' Account'
+        return rets
 
 
     def __str__(self):
@@ -235,14 +379,26 @@ class PebbleOperation(object):
             rets += self._fmt_snapshot_root()
         elif len(self.key) == len(SnapshotGenerator) and self.key == SnapshotGenerator:
             rets += self._fmt_snapshot_generator()
-        elif len(self.key) > 1 and self.key[0] == ord('c'):
+        elif len(self.key) > len(CodePrefix) and self.key[:len(CodePrefix)] == CodePrefix:
             rets += self._fmt_code()
-        elif len(self.key) > 1 and self.key[0] == ord('L'):
+        elif len(self.key) > len(stateIDPrefix) and self.key[:len(stateIDPrefix)] == stateIDPrefix:
             rets += self._fmt_state_idkey()
         elif len(self.key) > len(GenesisPrefix) and self.key[:len(GenesisPrefix)] == GenesisPrefix:
             rets += self._fmt_genesis_state_key()
         elif len(self.key) >= len(BlockBodyPrefix) and self.key[:len(BlockBodyPrefix)] == BlockBodyPrefix:
             rets += self._fmt_block_body()
+        elif len(self.key) > len(headerNumberPrefix) and self.key[:len(headerNumberPrefix)] == headerNumberPrefix:
+            rets += self._fmt_header_number()
+        elif len(self.key) > len(headerPrefix) and self.key[:len(headerPrefix)] == headerPrefix and len(self.key) == (len(headerPrefix) + NUMBER8_SIZE + len(headerHashSuffix)) and self.key[-(len(headerHashSuffix)):] == headerHashSuffix:
+            rets += self._fmt_header_hash()
+        elif len(self.key) > len(headerPrefix) and self.key[:len(headerPrefix)] == headerPrefix:
+            rets += self._fmt_header()
+        elif len(self.key) > len(blockReceiptsPrefix) and self.key[:len(blockReceiptsPrefix)] == blockReceiptsPrefix:
+            rets += self._fmt_block_receipts()
+        elif len(self.key) > len(configPrefix) and self.key[:len(configPrefix)] == configPrefix:
+            rets += self._fmt_config()
+        elif len(self.key) > len(TrieNodeAccountPrefix) and self.key[:len(TrieNodeAccountPrefix)] == TrieNodeAccountPrefix:
+            rets += self._fmt_account()
         rets += self._default_value()
         return rets
 
@@ -261,25 +417,27 @@ class ParsePebble(object):
         putexpr = re.compile('Put key\\s+\\[([^\\]]+)\\]\\s+value\\s+\\[([^\\]]*)\\]')
         deleteexpr = re.compile('Delete key\\s+\\[([^\\]]*)\\]')
         delrangeexpr = re.compile('DeleteRange start\\s+\\[([^\\]]+)\\]\\s+end\\s+\\[([^\\]]*)\\]')
+        lindex = 0
         for l in sarr:
+            lindex += 1
             l = l.rstrip('\r\n')
             #logging.info('l[%s]'%(l))
             m = putexpr.findall(l)
             if m is not None and len(m) > 0:
                 op = PebbleOperation()
-                op.set_op('put', m[0][0],m[0][1])
+                op.set_op('put', m[0][0],m[0][1],lindex)
                 self.operations.append(op)
                 continue
             m = deleteexpr.findall(l)
             if m is not None and len(m) > 0:
                 op = PebbleOperation()
-                op.set_op('delete',m[0])
+                op.set_op('delete',m[0],[],lindex)
                 self.operations.append(op)
                 continue
             m = delrangeexpr.findall(l)
             if m is not None and len(m) > 0:
                 op = PebbleOperation()
-                op.set_op('delrange',m[0][0],m[0][1])
+                op.set_op('delrange',m[0][0],m[0][1],lindex)
                 self.operations.append(op)
                 continue
         return
@@ -297,7 +455,8 @@ def parsepebble_handler(args,parser):
     for f in args.subnargs:
         p = ParsePebble(f)
         p.parse()
-        sys.stdout.write('%s'%(p))        
+        for cp in p.operations:
+            sys.stdout.write('%s\n'%(cp))
     sys.exit(0)
     return
 
@@ -311,6 +470,14 @@ def rlpdec_handler(args,parser):
     sys.exit(0)
     return
 
+def rlphash_handler(args,parser):
+    set_logging(args)
+    for f in args.subnargs:
+        inb = read_file_bytes(f)
+        sys.stdout.write('[%s] %s\n'%(f,calc_rlp_hash(inb)))
+    sys.exit(0)
+    return
+
 def load_base_parser(parser):
     commandline_fmt='''
     {
@@ -320,6 +487,9 @@ def load_base_parser(parser):
             "$" : "*"
         },
         "rlpdec<rlpdec_handler>##file ... to decode rlp##" : {
+            "$" : "+"
+        },
+        "rlphash<rlphash_handler>##file ... to make sha256 values##" : {
             "$" : "+"
         }
     }

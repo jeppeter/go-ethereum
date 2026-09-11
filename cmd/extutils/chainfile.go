@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/cockroachdb/pebble"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -46,6 +47,15 @@ var encrlpvarCommand = &cli.Command{
 	ArgsUsage:   "jsonfile",
 	Flags:       []cli.Flag{},
 	Description: `to encode rlp variable`,
+}
+
+var decheaderCommand = &cli.Command{
+	Action:      decode_header,
+	Name:        "decheader",
+	Usage:       "binfile to dec header",
+	ArgsUsage:   "binfile",
+	Flags:       []cli.Flag{},
+	Description: `to decode header`,
 }
 
 func iter_chain(ctx *cli.Context) (err error) {
@@ -249,6 +259,48 @@ func encode_rlp_variable(ctx *cli.Context) (err error) {
 		}
 	} else {
 		fmt.Printf("%v\n", outb)
+	}
+
+	err = nil
+	return
+}
+
+func decode_header(ctx *cli.Context) (err error) {
+	var binfile string
+	var inb []byte
+	var header *types.Header
+	var outb []byte
+	var output string
+	debug.Setup(ctx)
+	if ctx.Args().Len() < 1 {
+		err = fmt.Errorf("need binfile")
+		return
+	}
+	binfile = ctx.Args().Get(0)
+	inb, err = os.ReadFile(binfile)
+	if err != nil {
+		return
+	}
+
+	header = &types.Header{}
+	err = rlp.DecodeBytes(inb, header)
+	if err != nil {
+		return
+	}
+
+	outb, err = json.Marshal(header)
+	if err != nil {
+		return
+	}
+
+	if ctx.IsSet(outputFlag.Name) {
+		output = ctx.String(outputFlag.Name)
+		err = os.WriteFile(output, outb, 0644)
+		if err != nil {
+			return
+		}
+	} else {
+		fmt.Printf("%s\n", string(outb))
 	}
 
 	err = nil

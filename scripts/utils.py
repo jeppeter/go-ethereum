@@ -299,11 +299,11 @@ def init_datadir_genesis(args,datadir,gensisfile):
     return retval
 
 def remove_file_or_stdout(args,fname,note):
-    if args.reserved:
+    if not args.reserved:
         sys.stdout.write('remove %s [%s]\n'%(note,fname))
         os.remove(fname)
     else:
-        sys.stdout.write('%s [%s]\n'%(note,fname))
+        sys.stdout.write('reserved %s [%s]\n'%(note,fname))
     return
 
 def get_user_datadir(args,username):
@@ -465,8 +465,7 @@ def get_toml_value(args):
             raise Exception('can not dumpconfig')
         logging.info('dump conifg [%s]'%(retfile))
         ins = read_file(retfile)
-        if not args.reserved:
-            os.remove(retfile)
+        remove_file_or_stdout(args,retfile,'dumpconfig file')
     tex = TomlEx()
     tex.loads(ins)
     return tex
