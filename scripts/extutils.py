@@ -460,13 +460,50 @@ def parsepebble_handler(args,parser):
     sys.exit(0)
     return
 
+def dump_bytes(outb):
+    idx = 0
+    rets = '['
+    while idx < len(outb):
+        if idx > 0:
+            rets += ' '
+        rets += '%d'%(outb[idx])
+        idx += 1
+    rets += ']'
+    return rets
+
+def out_rc(outf,inb,tabs=0):
+    cidx = 0
+    while cidx < tabs:
+        outf.write('    ')
+        cidx += 1
+    cidx = 0
+    outf.write('[%d]['%(len(inb)))
+    while cidx < len(inb):
+        if cidx > 0:
+            outf.write(' ')
+        outf.write('%d'%(inb[cidx]))
+        cidx += 1
+    outf.write(']\n')
+
+
+    jdx = 0
+    try:
+        rc = rlp.decode(inb)
+    except:
+        return
+    jdx = 0
+    while jdx < len(rc):
+        out_rc(outf,rc[jdx],tabs+1)
+        jdx += 1
+    return
+
 
 def rlpdec_handler(args,parser):
     set_logging(args)
     for f in args.subnargs:
         inb = read_file_bytes(f)
-        rc = rlp.decode(inb)
-        sys.stdout.write('%s\n'%(rc))
+        out_rc(sys.stdout,inb,0)
+
     sys.exit(0)
     return
 

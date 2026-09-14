@@ -18,6 +18,7 @@ package pathdb
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -45,6 +46,8 @@ type nodeSet struct {
 // newNodeSet constructs the set with the provided dirty trie nodes.
 func newNodeSet(nodes map[common.Hash]map[string]*trienode.Node) *nodeSet {
 	// Don't panic for the lazy callers, initialize the nil map instead
+	var outb []byte
+	var err error
 	if nodes == nil {
 		nodes = make(map[common.Hash]map[string]*trienode.Node)
 	}
@@ -56,6 +59,10 @@ func newNodeSet(nodes map[common.Hash]map[string]*trienode.Node) *nodeSet {
 	for owner, subset := range nodes {
 		if owner == (common.Hash{}) {
 			log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
+			outb, err = json.Marshal(subset)
+			if err == nil {
+				log.Info(fmt.Sprintf("subset\n%s", string(outb)))
+			}
 			s.accountNodes = subset
 		} else {
 			s.storageNodes[owner] = subset
@@ -285,6 +292,7 @@ func (s *nodeSet) decode(r *rlp.Stream) error {
 func (s *nodeSet) write(batch ethdb.Batch, clean *fastcache.Cache) int {
 	nodes := make(map[common.Hash]map[string]*trienode.Node)
 	if len(s.accountNodes) > 0 {
+		log.Info(fmt.Sprintf("accountNodes"))
 		nodes[common.Hash{}] = s.accountNodes
 	}
 	for owner, subset := range s.storageNodes {
