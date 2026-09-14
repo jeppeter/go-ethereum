@@ -70,6 +70,7 @@ func (db *Database) loadJournal(diskRoot common.Hash) (layer, error) {
 		if len(journal) == 0 {
 			return nil, errMissJournal
 		}
+		log.Info(fmt.Sprintf("journal %v", journal))
 		reader = bytes.NewReader(journal)
 	}
 	r := rlp.NewStream(reader, 0)
