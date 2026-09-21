@@ -87,7 +87,7 @@ class PebbleOperation(object):
                 rets += '%d'%(self.value[idx])
                 idx += 1
             rets += ']'
-        rets += ')'
+        rets += ') line [%d]'%(self.lineno)
         return rets
 
     def _fmt_hex(self,hexb,note):

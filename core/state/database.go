@@ -18,7 +18,6 @@ package state
 
 import (
 	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/core/overlay"
@@ -27,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/trie/bintrie"
 	"github.com/ethereum/go-ethereum/trie/transitiontrie"
@@ -277,11 +277,13 @@ func (db *CachingDB) ContractCodeWithPrefix(address common.Address, codeHash com
 
 // TrieDB retrieves any intermediate trie-node caching layer.
 func (db *CachingDB) TrieDB() *triedb.Database {
+	log.Info(fmt.Sprintf("TrieDB %v", db.triedb))
 	return db.triedb
 }
 
 // Snapshot returns the underlying state snapshot.
 func (db *CachingDB) Snapshot() *snapshot.Tree {
+	log.Info(fmt.Sprintf("Snapshot %v", db.snap))
 	return db.snap
 }
 

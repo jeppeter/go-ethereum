@@ -18,12 +18,13 @@ package state
 
 import (
 	"errors"
-
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
@@ -138,10 +139,12 @@ func (db *HistoricDB) OpenStorageTrie(stateRoot common.Hash, address common.Addr
 
 // TrieDB returns the underlying trie database for managing trie nodes.
 func (db *HistoricDB) TrieDB() *triedb.Database {
+	log.Info(fmt.Sprintf("TrieDB %v", db.triedb))
 	return db.triedb
 }
 
 // Snapshot returns the underlying state snapshot.
 func (db *HistoricDB) Snapshot() *snapshot.Tree {
+	log.Info(fmt.Sprintf("Snapshot nil"))
 	return nil
 }

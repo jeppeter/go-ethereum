@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // layerTree is a group of state layers identified by the state root.
@@ -80,7 +81,7 @@ func (tree *layerTree) init(head layer) {
 func (tree *layerTree) get(root common.Hash) layer {
 	tree.lock.RLock()
 	defer tree.lock.RUnlock()
-
+	log.Info(fmt.Sprintf("tree.get [0x%x]", root))
 	return tree.layers[root]
 }
 

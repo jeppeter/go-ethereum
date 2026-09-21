@@ -555,9 +555,11 @@ func (db *Database) Update(root common.Hash, parent common.Hash, block uint64, n
 		if owner == (common.Hash{}) {
 			continue
 		}
+		log.Info(fmt.Sprintf("append order 0x%x", owner))
 		order = append(order, owner)
 	}
 	if _, ok := nodes.Sets[common.Hash{}]; ok {
+		log.Info(fmt.Sprintf("append common.Hash{}"))
 		order = append(order, common.Hash{})
 	}
 	for _, owner := range order {

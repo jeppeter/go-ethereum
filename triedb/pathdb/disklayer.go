@@ -320,6 +320,7 @@ func (dl *diskLayer) storage(accountHash, storageHash common.Hash, depth int) ([
 // update implements the layer interface, returning a new diff layer on top
 // with the given state set.
 func (dl *diskLayer) update(root common.Hash, id uint64, block uint64, nodes *nodeSetWithOrigin, states *StateSetWithOrigin) *diffLayer {
+	log.Info(fmt.Sprintf("diskLayer update"))
 	return newDiffLayer(dl, root, id, block, nodes, states)
 }
 

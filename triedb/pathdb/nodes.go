@@ -65,6 +65,11 @@ func newNodeSet(nodes map[common.Hash]map[string]*trienode.Node) *nodeSet {
 			}
 			s.accountNodes = subset
 		} else {
+			log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
+			outb, err = json.Marshal(subset)
+			if err == nil {
+				log.Info(fmt.Sprintf("owner 0x%x subset\n%s", owner, string(outb)))
+			}
 			s.storageNodes[owner] = subset
 		}
 	}
