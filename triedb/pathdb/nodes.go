@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"reflect"
 
 	"github.com/VictoriaMetrics/fastcache"
 	"github.com/ethereum/go-ethereum/common"
@@ -49,6 +50,7 @@ func newNodeSet(nodes map[common.Hash]map[string]*trienode.Node) *nodeSet {
 	var outb []byte
 	var err error
 	if nodes == nil {
+		log.Info(fmt.Sprintf("nodes %v", nodes))
 		nodes = make(map[common.Hash]map[string]*trienode.Node)
 	}
 	log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
@@ -58,7 +60,7 @@ func newNodeSet(nodes map[common.Hash]map[string]*trienode.Node) *nodeSet {
 	}
 	for owner, subset := range nodes {
 		if owner == (common.Hash{}) {
-			log.Info(fmt.Sprintf("accountNodes caller %s ", common.GetCallerString(1)))
+			log.Info(fmt.Sprintf("accountNodes caller %s subset type %s", common.GetCallerString(1), reflect.TypeOf(subset)))
 			outb, err = json.Marshal(subset)
 			if err == nil {
 				log.Info(fmt.Sprintf("subset\n%s", string(outb)))

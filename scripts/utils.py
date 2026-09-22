@@ -333,7 +333,7 @@ def init_user_toml(args,username,rdict,tex):
 
 def username_datadir_account_init(args,username,rdict,tex):
     datadir = get_user_datadir(args,username)
-    secfile = mktemp_file('secfile.XXXXXXX.password')
+    secfile = mktemp_file('secfile.XXXXXXX.password',datadir)
     password = ''
     if PASSWORD_KEYWORD in rdict.keys():
         password = rdict[PASSWORD_KEYWORD]
@@ -342,7 +342,7 @@ def username_datadir_account_init(args,username,rdict,tex):
     logging.info('[%s] password [%s]'%(username,password))
     write_file(password,secfile)
     retval = generate_account(args,datadir,secfile)
-    remove_file_or_stdout(args,secfile,'secfile')
+    #remove_file_or_stdout(args,secfile,'secfile')
     if not retval:
         return retval
     retval = init_user_toml(args,username,rdict,tex)
@@ -367,7 +367,8 @@ def get_user_account_info(userdir):
 
 
 def username_generate_gensis(args,rdict,gensisfile):
-    newgenesis = mktemp_file('genesis.XXXXXX.json')
+    datadir = args.datadir
+    newgenesis = mktemp_file('genesis.XXXXXX.json',datadir)
     ins = read_file(gensisfile)
     cdict = json.loads(ins)
     if GENESIS_CONFIG not in cdict.keys():
@@ -404,7 +405,7 @@ def username_generate_gensis(args,rdict,gensisfile):
         if not retval :
             remove_file_or_stdout(args,newgenesis,'newgenesis')
             return retval
-    remove_file_or_stdout(args,newgenesis,'newgenesis')
+    #remove_file_or_stdout(args,newgenesis,'newgenesis')
     return True
 
 

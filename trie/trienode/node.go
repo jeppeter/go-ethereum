@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // Node is a wrapper which contains the encoded blob of the trie node and its
@@ -45,6 +46,7 @@ func (n *Node) IsDeleted() bool {
 
 // New constructs a node with provided node information.
 func New(hash common.Hash, blob []byte) *Node {
+	log.Info(fmt.Sprintf("Node new %s hash 0x%x blob %v", common.GetCallerString(1), hash, blob))
 	return &Node{Hash: hash, Blob: blob}
 }
 
