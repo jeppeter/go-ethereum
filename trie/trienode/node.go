@@ -51,7 +51,10 @@ func New(hash common.Hash, blob []byte) *Node {
 }
 
 // NewDeleted constructs a node which is deleted.
-func NewDeleted() *Node { return New(common.Hash{}, nil) }
+func NewDeleted() *Node {
+	log.Info(fmt.Sprintf("NewDeleted %s", common.GetCallerString(1)))
+	return New(common.Hash{}, nil)
+}
 
 // NodeWithPrev is a wrapper over Node by tracking the original value of node.
 type NodeWithPrev struct {
