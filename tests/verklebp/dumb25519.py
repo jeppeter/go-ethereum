@@ -6,6 +6,7 @@
 
 import secrets
 from hashlib import blake2s
+import logging
 
 # Curve parameters
 q = 2**255 - 19
@@ -521,13 +522,20 @@ def hash_to_scalar(*data):
     for datum in data:
         if datum is None:
             raise TypeError
+        #logging.info(f'datum {datum}')
         result += blake2s(str(datum).encode('utf-8')).hexdigest()
+        #logging.info(f'result {result}')
 
     # Continue hashing until we get a valid Scalar
+    chkidx = 0
     while True:
+        #logging.info(f'input result {result}')
         result = blake2s(result.encode('utf-8')).hexdigest()
+        #logging.info(f'{chkidx} output result {result} l 0x%x'%(l))
         if int(result,16) < l:
+            logging.info('Scalar 0x%x'%(int(result,16)))
             return Scalar(int(result,16))
+        chkidx += 1
 
 # Generate a random Scalar
 def random_scalar(zero=True):
