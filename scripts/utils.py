@@ -644,6 +644,23 @@ def execjs_handler(args,parser):
     sys.exit(0)
     return
 
+def remove_genesis(args):
+    allfiles = os.listdir(args.datadir)
+    genexpr = re.compile('genesis\\.([^\\.]+)\\.json')
+    retval = True
+    for f in allfiles:
+        curf = os.path.join(args.datadir,f)
+        if os.path.isfile(curf):
+            if genexpr.match(f):
+                try:
+                    os.remove(curf)
+                except:
+                    retval = False
+                    logging.error('%s'%(traceback.format_exc()))
+    return retval
+
+
+
 
 def cleandata_handler(args,parser):
     set_logging(args)
@@ -661,6 +678,9 @@ def cleandata_handler(args,parser):
             logging.error('%s'%(traceback.format_exc()))
         if not retval:
             totalret = False
+    retval = remove_genesis(args)
+    if not retval:
+        totalret = False
     if not totalret:
         sys.exit(3)
     sys.exit(0)
