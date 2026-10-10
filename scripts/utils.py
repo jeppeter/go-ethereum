@@ -686,9 +686,10 @@ def cleandata_handler(args,parser):
     sys.exit(0)
     return
 
-CFG_PORT_VALUES = ['Node.HTTPPort','Node.AuthPort','Node.WSPort']
+CFG_PORT_VALUES = ['Node.HTTPPort','Node.AuthPort','Node.WSPort','Metrics.Port']
 CFG_LISTEN_PORT = 'Node.P2P.ListenAddr'
 CFG_NETWORKID = 'Eth.NetworkId'
+CFG_INFLUX_DB_PORT = 'Metrics.InfluxDBEndpoint'
 
 CFG_DEF_VALUES = {
     'Node.P2P.BootstrapNodes' : [],
@@ -718,13 +719,15 @@ def makecfg_handler(args,parser):
         curdict[CFG_LISTEN_PORT] = ':%d'%(curport)
         curport += 1
         curdict[PASSWORD_KEYWORD] = '%s_%d'%(curk,curport)
+        curport += 1
         curdict[CFG_NETWORKID] = args.networkid
+        curdict[CFG_INFLUX_DB_PORT] = 'http://127.0.0.1:%d'%(curport)
 
         for k,v in CFG_DEF_VALUES.items():
             curdict[k]=v
         rdict[curk] = curdict
         idx += 1
-        curstartport += 10
+        curstartport += 20
 
     outs = json.dumps(rdict,indent=4)
     write_file(outs,args.output)
