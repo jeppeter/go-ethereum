@@ -515,24 +515,26 @@ def rlphash_handler(args,parser):
     sys.exit(0)
     return
 
+
 def load_base_parser(parser):
     commandline_fmt='''
     {
         "input|i" : null,
         "output|o" : null,
+        "rpcpipe" : null,
         "catchpebble<%s.parsepebble_handler>##logfile ... to parse log for pebble handle##" : {
             "$" : "*"
         },
-        "rlpdec<rlpdec_handler>##file ... to decode rlp##" : {
+        "rlpdec<%s.rlpdec_handler>##file ... to decode rlp##" : {
             "$" : "+"
         },
-        "rlphash<rlphash_handler>##file ... to make sha256 values##" : {
+        "rlphash<%s.rlphash_handler>##file ... to make sha256 values##" : {
             "$" : "+"
         }
     }
     '''
 
-    commandline = commandline_fmt%(__name__)
+    commandline = commandline_fmt%(__name__,__name__,__name__,__name__)
     parser.load_command_line_string(commandline)
     return parser
 

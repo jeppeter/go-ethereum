@@ -13,6 +13,7 @@ import json
 import signal
 import time
 import shutil
+import urllib
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
@@ -30,6 +31,9 @@ GENESIS_CONFIG = 'config'
 GENESIS_CHAINID = 'chainId'
 GENESIS_ALLOC = 'alloc'
 GENESIS_BLANCE = 'balance'
+
+NODE_DATADIR_KEYWORD = 'Node.DataDir'
+NODE_IPCPATH_KEYWORD = 'Node.IPCPath'
 
 ETH_WEI = 0xde0b6b3a7640000
 
@@ -323,8 +327,8 @@ def init_user_toml(args,username,rdict,tex):
         #curpipe = curpipe.replace('\\','\\\\')
     else:
         curpipe = '/tmp/geth.%s'%(username)
-    ntex.set_value('Node.DataDir',curdatadir)
-    ntex.set_value('Node.IPCPath',curpipe)
+    ntex.set_value(NODE_DATADIR_KEYWORD,curdatadir)
+    ntex.set_value(NODE_IPCPATH_KEYWORD,curpipe)
 
     outs = ntex.dumps()
     curtoml = os.path.join(curdatadir,'%s.toml'%(username))
@@ -620,8 +624,7 @@ def killproc_handler(args,parser):
     sys.exit(0)
     return
 
-def exec_js(args,jsstr):
-    rpcpipe = args.rpcpipe
+def exec_js(args,rpcpipe,jsstr):
     if rpcpipe is None or len(rpcpipe) == 0:
         raise Exception('please set rpcpipe for connect')
     cmds = get_gethbin(args)
@@ -639,7 +642,7 @@ def execjs_handler(args,parser):
     set_logging(args)
 
     for s in args.subnargs:
-        outs = exec_js(args,s)
+        outs = exec_js(args,args.rpcpipe,s)
         sys.stdout.write('%s\n'%(outs))
     sys.exit(0)
     return
@@ -734,6 +737,105 @@ def makecfg_handler(args,parser):
     sys.exit(0)
 
 
+def get_node_ipcpath(args,username):
+    tomlfile = os.path.join(args.datadir,'datadir_%s'%(username),'%s.toml'%(username))
+    tomls = read_file(tomlfile)
+    tex = TomlEx()
+    tex.loads(tomls)
+    # now to get the value
+    ipcpath = tex.get_value(NODE_IPCPATH_KEYWORD)
+    if ipcpath is None:
+        raise Exception('can not get %s in %s'%(NODE_IPCPATH_KEYWORD,username))
+    return ipcpath
+
+
+def get_node_peers(args,username,ipcpath):
+    # now we should get the ipcpath
+    rets = exec_js(args,ipcpath,'admin.peers')
+    retval = []
+    sarr = re.split('\n',rets)
+    enodeexpr =re.compile('\\s+enode\\s*:\\s*"(.*)",\\s*$')
+    index = 0
+    for l in sarr:
+        index += 1        
+        l = l.rstrip('\r\n')
+        m = enodeexpr.findall(l)
+        if m is not None and len(m) > 0:
+            logging.info('[%s] append [%s]'%(username,m[0]))
+            retval.append(m[0])            
+    return retval
+
+def get_enode_value(args,username,ipcpath):
+    rets = exec_js(args,ipcpath,'admin.nodeInfo.enode')
+    return json.loads(rets)
+
+
+def url_enode_parse(enode):
+    retval = urllib.parse.urlsplit(enode)
+    return retval
+
+def check_peer_in(peers,enode):
+    ks = []
+    for k in peers:
+        retval = url_enode_parse(k)
+        if retval.username is not None:
+            ks.append(retval.username)
+    logging.info('ks %s'%(ks))
+    retval = url_enode_parse(enode)
+    retv = False
+    logging.info( 'enode %s retval.username %s'%(enode,retval.username))
+    if retval.username is not None:
+        if retval.username in ks:
+            retv = True
+    return retv
+
+def add_peer(args,node1,peernode,ipcpath):
+    ins = 'admin.addPeer("%s")'%(peernode)
+    logging.info('ins [%s]'%(ins))
+    rets = exec_js(args,ipcpath,ins)
+    logging.info('rets %s'%(rets))
+    return json.loads(rets)
+
+
+
+def addpeers_handler(args,parser):
+    set_logging(args)
+    ins = read_file(args.subnargs[0])
+    rdict = json.loads(ins)
+    keys = []
+    for k in rdict.keys():
+        keys.append(k)
+    # now to read the peers
+    ipcdict = dict()
+    for k in keys:
+        ipcdict[k] = get_node_ipcpath(args,k)
+    peerdict = dict()
+    for k in keys:
+        peerdict[k] = get_node_peers(args,k,ipcdict[k])
+        logging.info('[%s]=%s'%(k,peerdict[k]))
+
+    enodedict = dict()
+    for k in keys:
+        enodedict[k] = get_enode_value(args,k,ipcdict[k])
+        logging.info('[%s]enode[%s]'%(k,enodedict[k]))
+
+    idx = 0
+    while idx < len(keys):
+        jdx = idx + 1
+        while jdx < len(keys):
+            curik = keys[idx]
+            curjk = keys[jdx]
+            if not check_peer_in(peerdict[curik],enodedict[curjk]):
+                retval = add_peer(args,curik,enodedict[curjk],ipcdict[curik])
+                if not retval:
+                    raise Exception('can not add [%s] in %s'%(curjk,curik))
+            jdx += 1
+        idx += 1
+
+    sys.exit(0)
+    return
+
+
 def load_base_parser(parser):
     commandline_fmt='''
     {
@@ -771,6 +873,9 @@ def load_base_parser(parser):
         },
         "makecfg<%s.makecfg_handler>##[num] [startport] to set default value for config default 5 startport 10000##" : {
             "$" : "*"
+        },
+        "addpeers<%s.addpeers_handler>##jsonfile to add peers by the default values##" : {
+            "$" : 1
         }
     }
     '''
@@ -789,7 +894,7 @@ def load_base_parser(parser):
         if len(compiles) > 0:
             compiles += ','
         compiles += '%s'%(d)
-    commandline = commandline_fmt%(topdir,datadir,__name__,compiles,__name__,__name__,__name__,__name__,__name__,__name__,__name__)
+    commandline = commandline_fmt%(topdir,datadir,__name__,compiles,__name__,__name__,__name__,__name__,__name__,__name__,__name__,__name__)
     parser.load_command_line_string(commandline)
     return parser
 
