@@ -201,9 +201,18 @@ class ProcExpolore(object):
 
 	def _read_subprocess_output(self,cmds,shellmode=False):
 		#logging.info('cmds %s'%(cmds))
-		p = subprocess.Popen(cmds,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=shellmode)
-		stdoutbuf,stderrbuf = p.communicate()
-		return stdoutbuf,stderrbuf
+		maxcnt = 5
+		errcnt = 0
+		while True:
+			try:
+				p = subprocess.Popen(cmds,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=shellmode)
+				stdoutbuf,stderrbuf = p.communicate()
+				return stdoutbuf,stderrbuf
+			except:
+				errcnt += 1
+				if errcnt >= maxcnt:
+					return b'',b''
+				p = None
 
 	def _split_buf_lines(self,buf):
 		retbufs = []
