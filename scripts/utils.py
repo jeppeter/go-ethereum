@@ -23,19 +23,9 @@ from envop import is_windows,is_linux
 from tomlex import TomlEx
 from strop import rand_buffer
 from procop import ProcExpolore
+from key_word import *
 
 
-PASSWORD_KEYWORD = 'PASSWORD.KEY'
-ADDRESS_KEYWORD = 'address'
-GENESIS_CONFIG = 'config'
-GENESIS_CHAINID = 'chainId'
-GENESIS_ALLOC = 'alloc'
-GENESIS_BLANCE = 'balance'
-
-NODE_DATADIR_KEYWORD = 'Node.DataDir'
-NODE_IPCPATH_KEYWORD = 'Node.IPCPath'
-
-ETH_WEI = 0xde0b6b3a7640000
 
 def get_topdir():
     dname = os.path.dirname(os.path.abspath(__file__))
@@ -689,16 +679,6 @@ def cleandata_handler(args,parser):
     sys.exit(0)
     return
 
-CFG_PORT_VALUES = ['Node.HTTPPort','Node.AuthPort','Node.WSPort','Metrics.Port']
-CFG_LISTEN_PORT = 'Node.P2P.ListenAddr'
-CFG_NETWORKID = 'Eth.NetworkId'
-CFG_INFLUX_DB_PORT = 'Metrics.InfluxDBEndpoint'
-
-CFG_DEF_VALUES = {
-    'Node.P2P.BootstrapNodes' : [],
-    'Node.P2P.BootstrapNodesV5' : [],
-    'Eth.SyncMode' : 'full'
-}
 
 
 def makecfg_handler(args,parser):
@@ -714,6 +694,7 @@ def makecfg_handler(args,parser):
     curstartport = defport
     while idx < num:
         curk = 'signer%d'%(idx)
+        jwtsecfile = make_user_datadir_file(args,curk,'jwt_%s.secret'%(curk))
         curdict = dict()
         curport = curstartport
         for k in CFG_PORT_VALUES:
@@ -725,6 +706,17 @@ def makecfg_handler(args,parser):
         curport += 1
         curdict[CFG_NETWORKID] = args.networkid
         curdict[CFG_INFLUX_DB_PORT] = 'http://127.0.0.1:%d'%(curport)
+        curport += 1
+        curdict[NODE_AUTHPORT_KEYWORD] = curport
+        curport += 1
+        curdict[NODE_AUTHADDR_KEYWORD] = '127.0.0.1'
+        # max peers
+        curdict[P2P_MAXPENDINGPEERS_KEYWORD] = num
+        curdict[P2P_MAXPEERS_KEYWORD] = num * 10
+        curdict[NODE_JWTSECRET_KEYWORD] = jwtsecfile
+
+        jwtsec = 'jwt_%s_%d'%(curk,curport)
+        write_file(jwtsec,jwtsecfile)
 
         for k,v in CFG_DEF_VALUES.items():
             curdict[k]=v
@@ -736,9 +728,14 @@ def makecfg_handler(args,parser):
     write_file(outs,args.output)
     sys.exit(0)
 
+def make_user_datadir_file(args,username,partfile):
+    retfile =  os.path.join(args.datadir,'datadir_%s'%(username),partfile)
+    make_directory_safe(os.path.dirname(retfile))
+    return retfile
+
 
 def get_node_ipcpath(args,username):
-    tomlfile = os.path.join(args.datadir,'datadir_%s'%(username),'%s.toml'%(username))
+    tomlfile = make_user_datadir_file(args,username,'%s.toml'%(username))
     tomls = read_file(tomlfile)
     tex = TomlEx()
     tex.loads(tomls)
