@@ -19,7 +19,7 @@ import hashlib
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
 from loglib import set_logging, load_log_commandline,log_command_prefix
-from fileop import read_file,write_file,make_directory_safe,mktemp_file
+from fileop import read_file,write_file,make_directory_safe,mktemp_file,get_disk_free_space
 from envop import is_windows,is_linux
 from tomlex import TomlEx
 from strop import rand_buffer
@@ -541,6 +541,10 @@ def runproc_handler(args,parser):
     set_logging(args)
     tex = get_toml_value(args)
 
+    frspc = get_disk_free_space(args.datadir)
+    if frspc < MIN_FREE_SPACE:
+        raise Exception('frspc 0x%x < MIN_FREE_SPACE 0x%x'%(frspc,MIN_FREE_SPACE))
+
     ins = read_file(args.subnargs[0])
     rdict = json.loads(ins)
     for k in rdict.keys():
@@ -603,9 +607,8 @@ def killproc_window(args):
             try:
                 os.kill(tokill[idx],signal.CTRL_C_EVENT)
             except:
-                pass
-                #if maxcnt >= 3:
-                #    logging.error('%s'%(traceback.format_exc()))
+                if maxcnt >= 3:
+                    logging.error('%s'%(traceback.format_exc()))
             idx += 1
     return
 

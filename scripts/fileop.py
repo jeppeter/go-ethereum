@@ -14,12 +14,18 @@ import tarfile
 import gzip
 import traceback
 import tempfile
+import json
 
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'pythonlib'))
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 import extargsparse
 from loglib import set_logging,load_log_commandline
 from strop import parse_int
+from tomlex import TomlEx
+from yamlex import YamlEx
+from envop import is_windows 
+if is_windows():
+    import win32api
 
 class ReadTar(object):
     def __init__(self,fname):
@@ -263,12 +269,7 @@ def mktemp_file(templ='tempfile.XXXXXX',ind=None):
     tempf = None
     try:
         if ind is None:
-            if 'TEMP' in os.environ.keys():
-                ind = os.environ['TEMP']
-            elif 'TMP' in os.environ.keys():
-                ind = os.environ['TMP']
-            else:
-                ind = os.getcwd()
+            ind = os.getcwd()
         retval = make_directory_safe(ind)
         if not retval:
             return None
@@ -837,6 +838,35 @@ def display_diff(srcd,dstd,srcfs,dstfs,cmpfs):
         s += '\n'
     return s
 
+def get_disk_free_space(path):
+    retval = -1
+    if is_windows():
+        try:
+            oret = win32api.GetDiskFreeSpaceEx(path)
+            # 1 for sector size 2 for available sectors
+            outs = ''
+            idx = 0
+            while idx < len(oret):
+                if len(outs) > 0:
+                    outs += ' '
+                outs += '0x%x'%(oret[idx])
+                idx += 1
+            logging.info('%s'%(outs))
+            retval = oret[0]
+        except:
+            logging.error('%s'%(traceback.format_exc()))
+            retval = -1
+    else:
+        try:
+            oret = os.statvfs(path)
+            retval = oret.f_bsize * oret.f_bfree
+        except:
+            logging.error('%s'%(traceback.format_exc()))
+            retval = -1
+    return retval
+
+
+
 def diff_handler(args,parser):
     set_logging(args)
     srcd = args.subnargs[0]
@@ -1034,6 +1064,69 @@ def mktemp_handler(args,parser):
     sys.exit(0)
     return
 
+def tomled_handler(args,parser):
+    set_logging(args)
+    if len(args.subnargs) == 0:
+        raise Exception('need a file')
+    ins = read_file(args.subnargs[0])
+    tex = TomlEx()
+    rdict = tex.loads(ins)
+    if len(args.subnargs) == 1:
+        outs = tex.dumps(rdict)
+        sys.stdout.write('%s'%(outs))
+    else:
+        writecnt = 0
+        for l in args.subnargs[1:]:
+            carr = re.split('=',l,2)
+            if len(carr) >= 2:
+                logging.info('carr[1]=[%s]'%(carr[1]))
+                v = json.loads(carr[1])
+                tex.set_value(carr[0],v)
+                writecnt += 1
+            else:
+                v = tex.get_value(carr[0])
+                sys.stdout.write('[%s]=[%s]\n'%(carr[0],v))
+        if writecnt > 0:
+            outs = tex.dumps()
+            write_file(outs,args.output)
+    sys.exit(0)
+    return
+
+def yamled_handler(args,parser):
+    set_logging(args)
+    if len(args.subnargs) == 0:
+        raise Exception('need a file')
+    ins = read_file(args.subnargs[0])
+    yex = YamlEx()
+    rdict = yex.loads(ins)
+    if len(args.subnargs) == 1:
+        outs = yex.dumps(rdict)
+        sys.stdout.write('%s'%(outs))
+    else:
+        writecnt = 0
+        for l in args.subnargs[1:]:
+            carr = re.split('=',l,2)
+            if len(carr) >= 2:
+                logging.info('carr[1]=[%s]'%(carr[1]))
+                v = json.loads(carr[1])
+                yex.set_value(carr[0],v)
+                writecnt += 1
+            else:
+                v = yex.get_value(carr[0])
+                sys.stdout.write('[%s]=[%s]\n'%(carr[0],v))
+        if writecnt > 0:
+            outs = yex.dumps()
+            write_file(outs,args.output)
+    sys.exit(0)
+    return
+
+def freespace_handler(args,parser):
+    set_logging(args)
+    for p in args.subnargs:
+        retval = get_disk_free_space(p)
+        if retval >= 0:
+            sys.stdout.write('%s freespace %d\n'%(p,retval))
+    sys.exit(0)
 
 def main():
     commandline='''
@@ -1081,6 +1174,15 @@ def main():
             "$" : "*"
         },
         "mktemp<mktemp_handler>##template ... to create temp file##" : {
+            "$" : "+"
+        },
+        "tomled<tomled_handler>##file key=val... to set value##" : {
+            "$" : "+"
+        },
+        "yamled<yamled_handler>##file key=val ... to set value or just display it##": {
+            "$" : "+"
+        },
+        "freespace<freespace_handler>##path ... to display path size##" : {
             "$" : "+"
         }
     }

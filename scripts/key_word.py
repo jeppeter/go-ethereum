@@ -27,3 +27,5 @@ CFG_DEF_VALUES = {
     'Node.P2P.BootstrapNodesV5' : [],
     'Eth.SyncMode' : 'full'
 }
+
+MIN_FREE_SPACE = 2 * 1024 * 1024 * 1024
