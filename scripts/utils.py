@@ -694,7 +694,7 @@ def cleandata_handler(args,parser):
 def makecfg_handler(args,parser):
     set_logging(args)
     rdict = dict()
-    num = 5
+    num = 3
     defport = 10000
     if len(args.subnargs) > 0:
         num = int(args.subnargs[0])
