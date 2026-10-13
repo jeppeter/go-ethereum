@@ -14,6 +14,7 @@ import signal
 import time
 import shutil
 import urllib
+import hashlib
 
 sys.path.append(os.path.abspath(os.path.dirname(os.path.abspath(__file__))))
 
@@ -31,6 +32,11 @@ def get_topdir():
     dname = os.path.dirname(os.path.abspath(__file__))
     topdir = os.path.abspath(os.path.join(dname,'..'))
     return topdir
+
+def get_sha256_sum(inb):
+    s256 = hashlib.sha256()
+    s256.update(inb)
+    return s256.hexdigest()
 
 def get_compile_targets(topdir = None):
     if topdir is None:
@@ -625,6 +631,7 @@ def exec_js(args,rpcpipe,jsstr):
     outs = ''
     for l in cmdpack.run_cmd_output(cmds):
         outs += l
+    logging.info('[%s] output\n%s'%(jsstr,outs))
     return outs
 
 
@@ -716,7 +723,13 @@ def makecfg_handler(args,parser):
         curdict[NODE_JWTSECRET_KEYWORD] = jwtsecfile
 
         jwtsec = 'jwt_%s_%d'%(curk,curport)
-        write_file(jwtsec,jwtsecfile)
+        if sys.version[0] == '3':
+            inb = jwtsec.encode('utf-8')
+        else:
+            inb = byte(jwtsec)
+        outccs = get_sha256_sum(inb)
+        logging.info('jwtsec [%s] outccs [%s]'%(jwtsec,outccs))
+        write_file(outccs,jwtsecfile)
 
         for k,v in CFG_DEF_VALUES.items():
             curdict[k]=v
