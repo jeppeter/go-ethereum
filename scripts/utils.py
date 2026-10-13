@@ -702,6 +702,7 @@ def makecfg_handler(args,parser):
     while idx < num:
         curk = 'signer%d'%(idx)
         jwtsecfile = make_user_datadir_file(args,curk,'jwt_%s.secret'%(curk))
+        jwtpalinfile = make_user_datadir_file(args,curk,'jwt_%s.plain'%(curk))
         curdict = dict()
         curport = curstartport
         for k in CFG_PORT_VALUES:
@@ -730,6 +731,7 @@ def makecfg_handler(args,parser):
         outccs = get_sha256_sum(inb)
         logging.info('jwtsec [%s] outccs [%s]'%(jwtsec,outccs))
         write_file(outccs,jwtsecfile)
+        write_file(jwtsec,jwtpalinfile)
 
         for k,v in CFG_DEF_VALUES.items():
             curdict[k]=v
