@@ -22,7 +22,7 @@ from loglib import set_logging, load_log_commandline,log_command_prefix
 from fileop import read_file,write_file,make_directory_safe,mktemp_file,get_disk_free_space
 from envop import is_windows,is_linux
 from tomlex import TomlEx
-from strop import rand_buffer
+from strop import rand_buffer, parse_k_value
 from procop import ProcExpolore
 from key_word import *
 
@@ -499,6 +499,8 @@ def newconfig_handler(args,parser):
     return
 
 def run_geth_with_config(args,tomlfile,key):
+    mindiskfreespc = parse_k_value(args.mindiskfreespace)
+    mindiskfreespc = int(mindiskfreespc / 1024 / 1024)
     cmds = get_gethbin(args)
     cmds.append('--config')
     cmds.append(tomlfile)
@@ -513,6 +515,8 @@ def run_geth_with_config(args,tomlfile,key):
     cmds.append(logfile)
     cmds.append('--log.format')
     cmds.append('logfmt')
+    cmds.append('--datadir.minfreedisk')
+    cmds.append('%d'%(mindiskfreespc))
     devnullfile = open(os.devnull,'wb')
     if is_windows():
         flags = 0
@@ -540,10 +544,11 @@ def runproc_handler(args,parser):
     # now to make running
     set_logging(args)
     tex = get_toml_value(args)
+    needfrspc = parse_k_value(args.mindiskfreespace)
 
     frspc = get_disk_free_space(args.datadir)
-    if frspc < MIN_FREE_SPACE:
-        raise Exception('frspc 0x%x < MIN_FREE_SPACE 0x%x'%(frspc,MIN_FREE_SPACE))
+    if frspc < needfrspc:
+        raise Exception('frspc 0x%x < mindiskfreespace 0x%x'%(frspc,needfrspc))
 
     ins = read_file(args.subnargs[0])
     rdict = json.loads(ins)
@@ -858,6 +863,7 @@ def load_base_parser(parser):
         "output|o" : null,
         "topdir|T" : "%s",
         "datadir|D" : "%s",
+        "mindiskfreespace" : "256m",
         "goproxy" : "https://goproxy.cn",
         "go111module" : "auto",
         "goos" : null,
