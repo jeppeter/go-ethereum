@@ -72,7 +72,7 @@ class _winprocindex(object):
 					if buf[idx] != ord(' '):						
 						nbuf = buf[curstart:curend]
 						cs = nbuf.decode('utf-8')
-						logging.info('cs [%s]'%(cs))
+						#logging.info('cs [%s]'%(cs))
 						ncs = cs.lower()
 						if ncs == 'caption':
 							self.capstart = curstart
@@ -95,7 +95,7 @@ class _winprocindex(object):
 		if curstart is not None and curstart < idx:
 			nbuf = buf[curstart:]
 			cs = nbuf.decode('utf-8')
-			logging.info('cs [%s]'%(cs))
+			#logging.info('cs [%s]'%(cs))
 			cs = cs.rstrip('\r\n')
 			if len(cs) > 0:
 				ncs = cs.lower()
@@ -201,18 +201,9 @@ class ProcExpolore(object):
 
 	def _read_subprocess_output(self,cmds,shellmode=False):
 		#logging.info('cmds %s'%(cmds))
-		maxcnt = 5
-		errcnt = 0
-		while True:
-			try:
-				p = subprocess.Popen(cmds,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=shellmode)
-				stdoutbuf,stderrbuf = p.communicate()
-				return stdoutbuf,stderrbuf
-			except:
-				errcnt += 1
-				if errcnt >= maxcnt:
-					return b'',b''
-				p = None
+		p = subprocess.Popen(cmds,stdout=subprocess.PIPE,stderr=subprocess.PIPE,shell=shellmode)
+		stdoutbuf,stderrbuf = p.communicate()
+		return stdoutbuf,stderrbuf
 
 	def _split_buf_lines(self,buf):
 		retbufs = []
@@ -280,7 +271,7 @@ class ProcExpolore(object):
 			rets = ''
 		return rets
 
-	def _parse_win_cmdline(self,buf):
+	def _parse_win_cmdline(self,buf,lindex):
 		idx = 0
 		quoted = False
 		lastslash = False
@@ -313,16 +304,22 @@ class ProcExpolore(object):
 				else:
 					if lastslash:
 						lastslash = False
-						if buf[idx] == ord('t'):
-							nbuf += b'\t'
-						elif buf[idx] == ord(' '):
-							nbuf += b' '
-						elif buf[idx] == ord('n'):
-							nbuf += b'\n'
-						elif buf[idx] == ord('r'):
-							nbuf += b'\r'
-						elif buf[idx] == ord('b'):
-							nbuf += b'\b'
+						if quoted:						
+							if buf[idx] == ord('t'):
+								nbuf += b'\t'
+							elif buf[idx] == ord(' '):
+								nbuf += b' '
+							elif buf[idx] == ord('n'):
+								nbuf += b'\n'
+							elif buf[idx] == ord('r'):
+								nbuf += b'\r'
+							elif buf[idx] == ord('b'):
+								nbuf += b'\b'
+							elif buf[idx] == ord('\\'):
+								nbuf += b'\\'
+							else:
+								nbuf += struct.pack('B',ord('\\'))
+								nbuf += struct.pack('B',buf[idx])
 						else:
 							nbuf += struct.pack('B',ord('\\'))
 							nbuf += struct.pack('B',buf[idx])
@@ -345,7 +342,7 @@ class ProcExpolore(object):
 				logging.error('unmatched quoted [%s]'%(repr(nbuf)))
 			cmdarr.append(self._decode_buf(nbuf))
 			nbuf = b''
-		#logging.info('cmdarr %s'%(cmdarr))
+		logging.info('cmdarr %s'%(cmdarr))
 		return cmdarr
 
 	def _parse_exec_path(self,buf):
@@ -355,7 +352,7 @@ class ProcExpolore(object):
 		started = False
 		nbuf = b''
 		rets = ''
-		#logging.info('buf [%s]'%(repr(buf)))
+		logging.info('buf [%s]'%(repr(buf)))
 		sidx = -1
 		eidx = -1
 		idx = 0
@@ -419,7 +416,7 @@ class ProcExpolore(object):
 					pinfo = ProcInfo()
 
 					# first to parse capname
-					cmdarr = self._parse_win_cmdline(cmdbuf)
+					cmdarr = self._parse_win_cmdline(cmdbuf,idx)
 					pinfo.set_cmdline(cmdarr)
 					logging.info('idx [%d] [%s]'%(idx,repr(curline)))
 					logging.info('execbuf [%s]'%(repr(execbuf)))
