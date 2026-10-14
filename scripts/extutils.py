@@ -39,6 +39,7 @@ headerPrefix=b'h'
 headerHashSuffix=b'n'
 blockReceiptsPrefix=b'r'
 TrieNodeAccountPrefix=b'A'
+databaseVersionKey=b'DatabaseVersion'
 NUMBER8_SIZE = 8
 
 def calc_rlp_hash(inb):
@@ -372,6 +373,12 @@ class PebbleOperation(object):
         rets = ' Account'
         return rets
 
+    def _fmt_database_version(self):
+        rets = ' DatabaseVersion %d'%(self.value[0])
+        return rets
+
+
+
 
     def __str__(self):
         rets = '%s '%(self.opname)
@@ -399,6 +406,8 @@ class PebbleOperation(object):
             rets += self._fmt_config()
         elif len(self.key) > len(TrieNodeAccountPrefix) and self.key[:len(TrieNodeAccountPrefix)] == TrieNodeAccountPrefix:
             rets += self._fmt_account()
+        elif len(self.key) >= len(databaseVersionKey) and self.key[:len(databaseVersionKey)] == databaseVersionKey:
+            rets += self._fmt_database_version()
         rets += self._default_value()
         return rets
 
@@ -448,7 +457,33 @@ class ParsePebble(object):
             outs += '%s\n'%(op)
         return outs
 
+class ParseIterChain(object):
+    def __init__(self,f):
+        self.file = f
+        self.operations = []
+        return
 
+    def parse(self):
+        ins = read_file(self.file)
+        sarr = re.split('\n',ins)
+        keyexpr = re.compile('^key\\s+\\[([^\\]]+)\\]=\\[([^\\]]+)\\]$')
+        lindex = 0
+        for l in sarr:
+            lindex += 1
+            l = l.rstrip('\r\n')
+            #logging.info('l[%s]'%(l))
+            m = keyexpr.findall(l)
+            if m is not None and len(m) > 0 and len(m[0]) > 1:
+                op = PebbleOperation()
+                op.set_op('insert',m[0][0],m[0][1],lindex)
+                self.operations.append(op)
+        return
+
+    def __str__(self):
+        outs = ''
+        for op in self.operations:
+            outs += '%s\n'%(op)
+        return outs
 
 def parsepebble_handler(args,parser):
     set_logging(args)
@@ -515,7 +550,15 @@ def rlphash_handler(args,parser):
     sys.exit(0)
     return
 
-
+def iterpebble_handler(args,parser):
+    set_logging(args)
+    for f in args.subnargs:
+        p = ParseIterChain(f)
+        p.parse()
+        for cp in p.operations:
+            sys.stdout.write('%s\n'%(cp))
+    sys.exit(0)
+    return
 def load_base_parser(parser):
     commandline_fmt='''
     {
@@ -529,6 +572,9 @@ def load_base_parser(parser):
             "$" : "+"
         },
         "rlphash<%s.rlphash_handler>##file ... to make sha256 values##" : {
+            "$" : "+"
+        },
+        "iterpebble<%s.iterpebble_handler>##pebfile ... to iter##" : {
             "$" : "+"
         }
     }
