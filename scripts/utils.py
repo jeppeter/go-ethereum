@@ -856,6 +856,40 @@ def addpeers_handler(args,parser):
     return
 
 
+def list_proc_inner(args,progname):
+    ps = ProcExpolore()
+    errcnt = 0
+    retdict = dict()
+    while True:
+        pids = []
+        errcnt += 1
+        retval = ps.snapshot()
+        if not retval:
+            continue
+        res = ps.get_result()
+        for k,v in res.items():
+            if is_windows():
+                if v.firstarg == '%s.exe'%(progname) or v.firstarg.endswith('\\%s.exe'%(progname)):
+                    retdict[k] = v
+            else:
+                if v.firstarg == '%s'%(progname) or v.firstarg.endswith('/%s'%(progname)):
+                    retdict[k] = v
+        return retdict
+    return retdict
+
+def listproc_handler(args,parser):
+    set_logging(args)
+    procs = ['geth']
+    if len(args.subnargs) > 0:
+        procs = args.subnargs
+    for p in procs:
+        rdict = list_proc_inner(args,p)
+        for k,v in rdict.items():
+            sys.stdout.write('[%s] %s [%s]\n'%(p,k,v.cmdline))
+    sys.exit(0)
+    return
+
+
 def load_base_parser(parser):
     commandline_fmt='''
     {
@@ -897,6 +931,9 @@ def load_base_parser(parser):
         },
         "addpeers<%s.addpeers_handler>##jsonfile to add peers by the default values##" : {
             "$" : 1
+        },
+        "listproc<%s.listproc_handler>##to list proc##" : {
+            "$" : "*"
         }
     }
     '''
@@ -915,7 +952,7 @@ def load_base_parser(parser):
         if len(compiles) > 0:
             compiles += ','
         compiles += '%s'%(d)
-    commandline = commandline_fmt%(topdir,datadir,__name__,compiles,__name__,__name__,__name__,__name__,__name__,__name__,__name__,__name__)
+    commandline = commandline_fmt%(topdir,datadir,__name__,compiles,__name__,__name__,__name__,__name__,__name__,__name__,__name__,__name__,__name__)
     parser.load_command_line_string(commandline)
     return parser
 
