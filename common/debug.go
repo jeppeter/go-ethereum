@@ -18,10 +18,13 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
+	"sync"
 )
 
 // Report gives off a warning requesting the user to submit an issue to the github tracker.
@@ -69,4 +72,125 @@ func GetCallerString(skip int) (outs string) {
 		sidx += 1
 	}
 	return
+}
+
+var common_test_logger io.Writer = nil
+var common_test_level int = -1
+var common_test_lock sync.Mutex
+var common_test_inited int = 0
+
+func init() {
+	fmt.Fprintf(os.Stderr, "Call InitTestFunc\n")
+	InitTestFunc()
+}
+
+func InitTestFunc() {
+	var envstr string
+	var err error
+	var fwriter io.Writer = nil
+	if common_test_inited != 0 {
+		return
+	}
+
+	envstr = os.Getenv("TEST_LEVEL")
+	if len(envstr) > 0 {
+		common_test_level, err = strconv.Atoi(envstr)
+	}
+	envstr = os.Getenv("TEST_LOG_FILE")
+	if len(envstr) > 0 {
+		var fp *os.File
+		fp, err = os.OpenFile(envstr, os.O_CREATE|os.O_WRONLY, 0640)
+		if err == nil {
+			fwriter = io.Writer(fp)
+		}
+		common_test_logger = io.MultiWriter(os.Stderr, fwriter)
+	} else {
+		if common_test_level > 0 {
+			common_test_logger = io.MultiWriter(os.Stderr)
+		}
+	}
+	common_test_inited = 1
+	return
+}
+
+func Testf(fmtstr string, a ...interface{}) {
+	var outs string
+	common_test_lock.Lock()
+	defer common_test_lock.Unlock()
+	if common_test_level <= 0 {
+		return
+	}
+	_, f, l, ok := runtime.Caller(1)
+	if ok {
+		outs = fmt.Sprintf("[%s:%d] ", f, l)
+	} else {
+		outs = ""
+	}
+	outs += fmt.Sprintf(fmtstr, a...)
+	outs += "\n"
+	common_test_logger.Write([]byte(outs))
+	return
+}
+
+func TestBufferf(inb []byte, fmtstr string, a ...interface{}) {
+	var outs string
+	var i int
+	var lasti int
+	common_test_lock.Lock()
+	defer common_test_lock.Unlock()
+	if common_test_level <= 0 {
+		return
+	}
+	_, f, l, ok := runtime.Caller(1)
+	if ok {
+		outs = fmt.Sprintf("[%s:%d] ", f, l)
+	} else {
+		outs = ""
+	}
+	outs += fmt.Sprintf(fmtstr, a...)
+
+	lasti = 0
+	for i = 0; i < len(inb); i += 1 {
+		if (i % 16) == 0 {
+			if i > 0 {
+				outs += fmt.Sprintf("    ")
+				for lasti < i {
+					if inb[lasti] >= byte(' ') && inb[lasti] <= byte('~') {
+						outs += fmt.Sprintf("%c", inb[lasti])
+					} else {
+						outs += "."
+					}
+					lasti += 1
+				}
+			}
+			outs += fmt.Sprintf("\n")
+			outs += fmt.Sprintf("0x%08x: ", i)
+			if len(outs) > 256 {
+				common_test_logger.Write([]byte(outs))
+				outs = ""
+			}
+		}
+		outs += fmt.Sprintf(" 0x%02x", inb[i])
+	}
+	if lasti != i {
+		for (i % 16) != 0 {
+			outs += fmt.Sprintf("     ")
+			i += 1
+		}
+		outs += fmt.Sprintf("    ")
+		for lasti < len(inb) {
+			if inb[lasti] >= byte(' ') && inb[lasti] <= byte('~') {
+				outs += fmt.Sprintf("%c", inb[lasti])
+			} else {
+				outs += "."
+			}
+			lasti += 1
+		}
+	}
+	outs += fmt.Sprintf("\n")
+	common_test_logger.Write([]byte(outs))
+	outs = ""
+
+	return
+
 }

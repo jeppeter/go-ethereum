@@ -449,6 +449,7 @@ func TestDuplicateAvoidanceSync(t *testing.T) {
 
 func testDuplicateAvoidanceSync(t *testing.T, scheme string) {
 	// Create a random trie to copy
+	common.Testf("scheme %s", scheme)
 	_, srcDb, srcTrie, srcData := makeTestTrie(scheme)
 
 	// Create a destination trie and sync with the scheduler

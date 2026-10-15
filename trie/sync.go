@@ -229,6 +229,7 @@ func (batch *syncMemBatch) addNode(owner common.Hash, path []byte, blob []byte, 
 	} else {
 		batch.size += common.HashLength + uint64(len(blob))
 	}
+	common.TestBufferf(blob, "[%s]add Blob", common.GetCallerString(2))
 	batch.nodes = append(batch.nodes, nodeOp{
 		owner: owner,
 		path:  path,
