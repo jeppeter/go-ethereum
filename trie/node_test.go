@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -46,6 +47,7 @@ func TestDecodeNestedNode(t *testing.T) {
 
 	buf := bytes.NewBuffer([]byte{})
 	rlp.Encode(buf, fullNodeData)
+	common.TestBufferf(buf.Bytes(), "NestedFullNode")
 
 	if _, err := decodeNode([]byte("testdecode"), buf.Bytes()); err != nil {
 		t.Fatalf("decode nested full node err: %v", err)
@@ -88,6 +90,8 @@ func TestDecodeFullNode(t *testing.T) {
 	buf := bytes.NewBuffer([]byte{})
 	rlp.Encode(buf, fullNodeData)
 
+	common.TestBufferf(buf.Bytes(), "FullNode")
+
 	_, err := decodeNode([]byte("testdecode"), buf.Bytes())
 	if err != nil {
 		t.Fatalf("decode full node err: %v", err)
@@ -128,6 +132,18 @@ func BenchmarkEncodeFullNode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		nodeToBytes(node)
 	}
+}
+
+func TestDecodeShortNode(b *testing.T) {
+	node := &shortNode{
+		Key: []byte{0x1, 0x2},
+		Val: hashNode(randBytes(32)),
+	}
+	blob := nodeToBytes(node)
+	common.TestBufferf(blob, "encode shortNode")
+	hash := crypto.Keccak256(blob)
+
+	mustDecodeNode(hash, blob)
 }
 
 // goos: darwin

@@ -78,9 +78,9 @@ var common_test_logger io.Writer = nil
 var common_test_level int = -1
 var common_test_lock sync.Mutex
 var common_test_inited int = 0
+var common_test_no_stderr int = 0
 
 func init() {
-	fmt.Fprintf(os.Stderr, "Call InitTestFunc\n")
 	InitTestFunc()
 }
 
@@ -96,6 +96,12 @@ func InitTestFunc() {
 	if len(envstr) > 0 {
 		common_test_level, err = strconv.Atoi(envstr)
 	}
+
+	envstr = os.Getenv("TEST_NO_STDERR")
+	if len(envstr) > 0 {
+		common_test_no_stderr, err = strconv.Atoi(envstr)
+	}
+
 	envstr = os.Getenv("TEST_LOG_FILE")
 	if len(envstr) > 0 {
 		var fp *os.File
@@ -103,10 +109,20 @@ func InitTestFunc() {
 		if err == nil {
 			fwriter = io.Writer(fp)
 		}
-		common_test_logger = io.MultiWriter(os.Stderr, fwriter)
+		if common_test_no_stderr == 0 {
+			common_test_logger = io.MultiWriter(os.Stderr, fwriter)
+		} else {
+			common_test_logger = io.MultiWriter(fwriter)
+		}
+
 	} else {
 		if common_test_level > 0 {
-			common_test_logger = io.MultiWriter(os.Stderr)
+			if common_test_no_stderr == 0 {
+				common_test_logger = io.MultiWriter(os.Stderr)
+			} else {
+				common_test_logger = io.MultiWriter()
+			}
+
 		}
 	}
 	common_test_inited = 1

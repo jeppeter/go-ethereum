@@ -24,7 +24,7 @@ from loglib import set_logging, load_log_commandline,log_command_prefix
 from fileop import read_file,write_file,make_directory_safe,mktemp_file,read_file_bytes,write_file_bytes
 from envop import is_windows,is_linux
 from tomlex import TomlEx
-from strop import rand_buffer
+from strop import rand_buffer,dump_buffer
 
 
 SnapshotRoot=b'SnapshotRoot'
@@ -47,6 +47,88 @@ def calc_rlp_hash(inb):
     nhash.update(inb)
     return nhash.hexdigest()
 
+class ShortNode(object):
+    def __init__(self):
+        self.elem = []
+        return
+    def unpack(self,inb):
+        retval = False
+        try:
+            self.elem = rlp.decode(inb)
+            if len(self.elem) == 2:
+                retval = True
+            else:
+                self.elem = []
+        except:
+            return False
+        return retval
+    def __str__(self):
+        return self.string()
+
+    def __repr__(self):
+        return self.string()
+
+    def string(self):
+        outs = ''
+        if len(self.elem) == 2:
+            outs += '.key ['
+            idx = 0
+            while idx < len(self.elem[0]):
+                if idx > 0:
+                    outs += ' '
+                val = struct.unpack('B',self.elem[0][idx])
+                outs += '%d'%(val)
+                idx += 1
+            outs += ']'
+            outs += ' value ['
+            idx = 0
+            while idx < len(self.elem[1]):
+                if idx > 0:
+                    outs += ' '
+                val = struct.unpack('B',self.elem[1][idx])
+                outs += '%d'%(val)
+                idx += 1
+            outs += ']'
+        return outs
+
+def FullNode(object):
+    def __init__(self):
+        self.elem = []
+        return
+    def unpack(self,inb):
+        retval = False
+        try:
+            self.elem = rlp.decode(inb)
+            if len(self.elem) == 17:
+                retval = True
+            else:
+                self.elem = []
+        except:
+            return False
+        return retval
+    def __str__(self):
+        return self.string()
+
+    def __repr__(self):
+        return self.string()
+
+    def string(self):
+        outs = ''
+        if len(self.elem) == 17:
+            idx = 0
+            while idx < len(self.elem):
+                jdx = 0
+                if idx > 0:
+                    outs += ' '
+                outs += '.key%d ['%(idx)
+                while jdx < len(self.elem[idx]):
+                    if jdx > 0:
+                        outs += ' '
+                    val = struct.unpack('B',self.elem[idx][jdx])
+                    outs += '%d'%(val)
+                    jdx += 1
+                idx += 1
+        return outs
 
 class PebbleOperation(object):
     def __init__(self):
@@ -507,6 +589,18 @@ def dump_bytes(outb):
     return rets
 
 def out_rc(outf,inb,tabs=0):
+    if isinstance(inb, list):
+        cidx = 0
+        while cidx < tabs:
+            outf.write('    ')
+            cidx += 1
+
+        outf.write('elem [%d] %s\n'%(len(inb),repr(inb)))
+        cidx = 0
+        while cidx < len(inb):
+            out_rc(outf,inb[cidx],tabs+1)
+            cidx += 1
+        return
     cidx = 0
     while cidx < tabs:
         outf.write('    ')
@@ -518,14 +612,16 @@ def out_rc(outf,inb,tabs=0):
             outf.write(' ')
         outf.write('%d'%(inb[cidx]))
         cidx += 1
-    outf.write(']\n')
+    outf.write(']')
 
 
     jdx = 0
     try:
         rc = rlp.decode(inb)
     except:
+        outf.write('\n')
         return
+    outf.write(' elem[%d]\n'%(len(rc)))
     jdx = 0
     while jdx < len(rc):
         out_rc(outf,rc[jdx],tabs+1)
