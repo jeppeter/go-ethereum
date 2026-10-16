@@ -69,14 +69,17 @@ class ShortNode(object):
         return self.string()
 
     def string(self):
-        outs = ''
+        outs = 'ShortNode('
         if len(self.elem) == 2:
             outs += '.key ['
             idx = 0
             while idx < len(self.elem[0]):
                 if idx > 0:
                     outs += ' '
-                val = struct.unpack('B',self.elem[0][idx])
+                if isinstance(self.elem[0][idx],int):
+                    val = self.elem[0][idx]
+                else:
+                    val = struct.unpack('B',self.elem[0][idx])
                 outs += '%d'%(val)
                 idx += 1
             outs += ']'
@@ -85,16 +88,21 @@ class ShortNode(object):
             while idx < len(self.elem[1]):
                 if idx > 0:
                     outs += ' '
-                val = struct.unpack('B',self.elem[1][idx])
+                if isinstance(self.elem[1][idx],int):
+                    val = self.elem[1][idx]
+                else:
+                    val = struct.unpack('B',self.elem[1][idx])
                 outs += '%d'%(val)
                 idx += 1
             outs += ']'
+        outs += ')'
         return outs
 
-def FullNode(object):
+class FullNode(object):
     def __init__(self):
         self.elem = []
         return
+
     def unpack(self,inb):
         retval = False
         try:
@@ -113,7 +121,7 @@ def FullNode(object):
         return self.string()
 
     def string(self):
-        outs = ''
+        outs = 'FullNode('
         if len(self.elem) == 17:
             idx = 0
             while idx < len(self.elem):
@@ -124,10 +132,15 @@ def FullNode(object):
                 while jdx < len(self.elem[idx]):
                     if jdx > 0:
                         outs += ' '
-                    val = struct.unpack('B',self.elem[idx][jdx])
+                    if isinstance(self.elem[idx][jdx],int):
+                        val = self.elem[idx][jdx]
+                    else:
+                        val = struct.unpack('B',self.elem[idx][jdx])
                     outs += '%d'%(val)
                     jdx += 1
+                outs += ']'
                 idx += 1
+        outs += ')'
         return outs
 
 class PebbleOperation(object):
@@ -452,7 +465,7 @@ class PebbleOperation(object):
         return rets
 
     def _fmt_account(self):
-        rets = ' Account'
+        rets = ' Account'        
         return rets
 
     def _fmt_database_version(self):
@@ -655,6 +668,25 @@ def iterpebble_handler(args,parser):
             sys.stdout.write('%s\n'%(cp))
     sys.exit(0)
     return
+
+def nodedec_handler(args,parser):
+    set_logging(args)
+    for f in args.subnargs:
+        inb = read_file_bytes(f)
+        short = ShortNode()
+        retval = short.unpack(inb)
+        if retval:
+            sys.stdout.write('%s %s\n'%(f,short))
+        else:
+            full = FullNode()
+            retval = full.unpack(inb)
+            if retval:
+                sys.stdout.write('%s %s\n'%(f,full))
+            else:
+                sys.stdout.write('%s not node\n'%(f))
+
+    sys.exit(0)
+
 def load_base_parser(parser):
     commandline_fmt='''
     {
@@ -672,11 +704,14 @@ def load_base_parser(parser):
         },
         "iterpebble<%s.iterpebble_handler>##pebfile ... to iter##" : {
             "$" : "+"
+        },
+        "nodedec<%s.nodedec_handler>##binfile ... to decode bin##" : {
+            "$" : "+"
         }
     }
     '''
 
-    commandline = commandline_fmt%(__name__,__name__,__name__,__name__)
+    commandline = commandline_fmt%(__name__,__name__,__name__,__name__,__name__)
     parser.load_command_line_string(commandline)
     return parser
 
